@@ -30,7 +30,7 @@ function Header() {
         <Link href="/" className="flex items-center gap-3">
           <Mark />
           <div className="leading-tight">
-            <div className="font-display text-[19px] font-semibold tracking-tight">Burnt Orange Supply Co.</div>
+            <div className="font-display text-[19px] font-semibold tracking-tight"><span className="sm:hidden">Burnt Orange</span><span className="hidden sm:inline">Burnt Orange Supply Co.</span></div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Austin, TX · est. this week</div>
           </div>
         </Link>
@@ -49,6 +49,19 @@ function Header() {
         </nav>
         <BuyerChip />
       </div>
+      <nav className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden">
+        {nav.map((n) => (
+          <Link
+            key={n.href}
+            href={n.href}
+            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
+              path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "bg-ink text-cream" : "text-ink-2 hover:bg-cream-2"
+            }`}
+          >
+            {n.label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
