@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  cacheComponents: false,
+  serverExternalPackages: ["better-sqlite3"],
   turbopack: {
     rules: {
       "*.css": {
@@ -11,6 +10,9 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "assets.gemini.com" }],
   },
 };
 

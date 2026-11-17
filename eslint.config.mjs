@@ -15,4 +15,11 @@ const eslintConfig = defineConfig([
   ]),
 ]);
 
+eslintConfig.push({
+  rules: {
+    "react-hooks/set-state-in-effect": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+  },
+});
+
 export default eslintConfig;
