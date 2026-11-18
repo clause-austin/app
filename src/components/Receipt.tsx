@@ -7,6 +7,7 @@ import type { OrderRow, HedgeRow, ProductRow, FeedRow } from "@/lib/db";
 import { cents } from "@/lib/pricing";
 import { useFeed } from "./useFeed";
 import { FeedList } from "./FeedList";
+import { Blocks } from "./Blocks";
 
 type Payload = {
   order: OrderRow;
@@ -73,15 +74,15 @@ export function Receipt({ id }: { id: string }) {
 
   if (missing) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-24">
-        <div className="serif text-[40px]">No such instrument.</div>
-        <Link href="/" className="link mt-4 inline-block text-sm">
-          Back to Schedule A
+      <div className="px-4 py-20">
+        <div className="h-lg">No such order.</div>
+        <Link href="/" className="mt-4 inline-block font-bold underline">
+          Back to goods
         </Link>
       </div>
     );
   }
-  if (!data) return <div className="label px-4 py-24 text-center">Preparing the counterpart</div>;
+  if (!data) return <div className="tag px-4 py-24 text-center">Loading</div>;
 
   const { order: o, product, buyer, hedge } = data;
   const hasClause = Boolean(o.event_ticker);
@@ -90,39 +91,40 @@ export function Receipt({ id }: { id: string }) {
   const teamWord = o.rebate_side === "no" ? "lose" : "win";
   const resultWord = settled ? (triggered ? (teamWord === "lose" ? "lost" : "won") : teamWord === "lose" ? "won" : "lost") : null;
   const rebate = hasClause ? o.paid_cents - o.lose_cents! : 0;
+  const finalPaid = settled && triggered ? o.lose_cents! : o.paid_cents;
 
-  const headline = settled ? (triggered ? "Satisfied." : hasClause ? "Discharged." : "Complete.") : hasClause ? "Awaiting the result." : "Complete.";
+  const headline = settled ? (triggered ? "Triggered." : hasClause ? "No rebate." : "Done.") : hasClause ? "Waiting on the game." : "Done.";
   const sub = settled
     ? triggered
-      ? `${o.contract_label} ${resultWord}. ${cents(rebate)} has been returned, so the ${product.name} cost ${cents(o.lose_cents!)}.`
+      ? `${o.contract_label} ${resultWord}. ${cents(rebate)} is back in your balance. The ${product.name} cost you ${cents(o.lose_cents!)}.`
       : hasClause
-        ? `${o.contract_label} ${resultWord}, so the condition was not met. The consideration has been released to the store.`
-        : "Paid in full, no condition attached."
+        ? `${o.contract_label} ${resultWord}, so the clause didn't trigger. Your payment has been released to the store.`
+        : "Paid in full, no clause attached."
     : hasClause
-      ? "The consideration is in escrow and the store has hedged your clause. Nobody needs to do anything when the game ends."
-      : "Paid in full, no condition attached.";
+      ? "Your payment is in escrow and the store has already hedged your clause. Nobody has to do anything when the game ends."
+      : "Paid in full, no clause attached.";
 
   const steps: { t: string; d: string; at?: number | null; state: "done" | "active" | "todo"; href?: string | null }[] = [
-    { t: "Consideration paid into escrow", d: `${cents(o.paid_cents)} USDC`, at: o.created_at, state: "done", href: o.pay_tx ? explorer(o.pay_tx) : null },
+    { t: "Paid into escrow", d: `${cents(o.paid_cents)} USDC`, at: o.created_at, state: "done", href: o.pay_tx ? explorer(o.pay_tx) : null },
     ...(hasClause
       ? [
           {
-            t: "Store hedged the condition",
+            t: "Store hedged your clause",
             d: hedge ? `${hedge.quantity} × ${o.contract_label} ${o.rebate_side?.toUpperCase()} at ${hedge.price} on Gemini (${hedge.venue})` : "Placing the matching order on Gemini",
             at: hedge?.created_at ?? null,
             state: (hedge ? "done" : "active") as "done" | "active",
           },
           {
-            t: settled ? `Market resolved: ${o.contract_label} ${resultWord}` : `Market resolves after ${o.event_title}`,
-            d: settled ? "Read from Gemini's resolution" : o.expiry_at ? `Expected ${new Date(o.expiry_at).toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" })}` : "After the game",
+            t: settled ? `${o.contract_label} ${resultWord}` : `${o.event_title}`,
+            d: settled ? "Market resolved on Gemini" : o.expiry_at ? `Resolves ${new Date(o.expiry_at).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "Resolves after the game",
             at: o.settled_at ?? null,
             state: (settled ? "done" : hedge ? "active" : "todo") as "done" | "active" | "todo",
           },
         ]
       : []),
     {
-      t: settled ? (triggered ? `${cents(rebate)} returned to the Buyer` : "Consideration released to the Store") : "Escrow releases on resolution",
-      d: settled ? (triggered ? `Store received ${cents(o.lose_cents!)}` : `Store received ${cents(o.paid_cents)}`) : "Automatic, in two transactions",
+      t: settled ? (triggered ? `${cents(rebate)} sent back to you` : "Payment released to the store") : "Escrow releases on resolution",
+      d: settled ? (triggered ? `Store received ${cents(o.lose_cents!)}` : `Store received ${cents(o.paid_cents)}`) : "Automatic, two transactions",
       at: o.settled_at ?? null,
       state: (settled ? "done" : "todo") as "done" | "active" | "todo",
       href: o.rebate_tx ? explorer(o.rebate_tx) : o.settle_tx ? explorer(o.settle_tx) : null,
@@ -130,169 +132,115 @@ export function Receipt({ id }: { id: string }) {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 md:px-6">
-      <div className="grid md:grid-cols-[1fr_1.35fr]">
-        {/* Left: status */}
-        <div className="py-12 md:sticky md:top-[57px] md:self-start md:py-14 md:pr-12">
-          <div className="label">Executed counterpart</div>
-          <h1 className="serif mt-4 text-[56px] leading-[0.95] md:text-[72px]">
-            {settled && triggered ? <em className="text-red">{headline}</em> : headline}
-          </h1>
-          <p className="mt-6 max-w-[40ch] text-[14px] leading-relaxed text-ink-2">{sub}</p>
-
-          {settled && (
-            <div className="mt-8 flex items-center gap-6">
-              <div className={`seal ${triggered ? "text-red" : "text-ink"}`}>
-                <span>
-                  {triggered ? "Satisfied" : hasClause ? "Discharged" : "Paid"}
-                  <br />
-                  {new Date(o.settled_at!).toLocaleDateString("en-US", { month: "short", day: "2-digit" })}
-                </span>
+    <div className="grid-lines grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
+      {/* Left */}
+      <div className="cell"><div className="flex flex-col lg:sticky lg:top-[49px]">
+        <div className="flex items-center justify-between border-b border-fg">
+          <span className="tag px-4 py-2">Order {o.id}</span>
+          <span className="tag px-4">{new Date(o.created_at).toLocaleString()}</span>
+        </div>
+        <div className={`px-4 pt-8 pb-6 ${settled && triggered ? "cell-acc" : ""}`}>
+          <h1 className="h-lg break-words">{headline}</h1>
+          <p className={`mt-5 max-w-[46ch] text-[13px] leading-relaxed ${settled && triggered ? "" : "text-mute"}`}>{sub}</p>
+        </div>
+        <div className="grid-lines grid-cols-[120px_1fr] border-t border-fg">
+          <div className="cell relative bg-faint">
+            <Image src={product.image} alt="" fill sizes="120px" className="object-cover" />
+          </div>
+          <div className="cell px-4 py-4">
+            <div className="text-[16px] font-extrabold uppercase leading-none">{product.name}</div>
+            <div className="tag mt-1">for {buyer.name}</div>
+            {hasClause && (
+              <div className="mt-3 text-[12px]">
+                Clause: <b>{o.contract_label} {teamWord}</b> · {o.event_title}
               </div>
-              <button onClick={speak} disabled={voiceState === "playing"} className="btn btn-ghost btn-sm">
-                {voiceState === "playing" ? "Reading" : "Read aloud"}
-                <span className="opacity-50">{data.voice.elevenlabs ? "ElevenLabs" : "browser"}</span>
-              </button>
+            )}
+          </div>
+        </div>
+        <div className="grid-lines grid-cols-3 border-t border-fg">
+          <div className="cell px-4 py-4">
+            <div className="tag">{settled ? "Paid" : "Paid today"}</div>
+            <div className={`num-lg mt-1 ${settled && triggered ? "strike" : ""}`}>{cents(o.paid_cents)}</div>
+          </div>
+          <div className="cell px-4 py-4">
+            <div className="tag">{hasClause ? "Back if triggered" : "Rebate"}</div>
+            <div className="num-lg mt-1 text-acc">{hasClause ? cents(rebate) : "–"}</div>
+          </div>
+          <div className="cell px-4 py-4">
+            <div className="tag">{settled ? "Final" : "If triggered"}</div>
+            <div className="num-lg mt-1">{hasClause ? cents(settled ? finalPaid : o.lose_cents!) : cents(o.paid_cents)}</div>
+          </div>
+        </div>
+        {hasClause && (
+          <div className="border-t border-fg px-4 py-4">
+            <div className="flex justify-between">
+              <span className="tag">Share of payment at risk for the store</span>
+              <span className="tag">hedged {hedge ? "✓" : "…"}</span>
             </div>
+            <Blocks fill={rebate / o.paid_cents} acc className="mt-2" />
+          </div>
+        )}
+        <div className="grid-lines grid-cols-2 border-t border-fg">
+          {settled ? (
+            <button onClick={speak} disabled={voiceState === "playing"} className="cell btn">
+              <span>{voiceState === "playing" ? "Reading" : "Hear the result"}</span>
+              <span className="text-[10px] opacity-60">{data.voice.elevenlabs ? "ElevenLabs" : "browser"}</span>
+            </button>
+          ) : (
+            <Link href="/" className="cell btn">
+              <span>Keep shopping</span>
+              <span>→</span>
+            </Link>
           )}
-
-          <div className="mt-10 border-t border-line pt-5">
-            <div className="flex items-baseline justify-between">
-              <span className="label">{settled ? "Final price" : "Paid today"}</span>
-              <span className="num text-[34px] leading-none">{cents(settled && triggered ? o.lose_cents! : o.paid_cents)}</span>
-            </div>
-            {settled && triggered && (
-              <div className="mt-2 flex items-baseline justify-between">
-                <span className="label">Was</span>
-                <span className="num redline text-[16px]">{cents(o.paid_cents)}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 flex gap-3">
-            <Link href="/" className="btn btn-ghost btn-sm">
-              Schedule A
-            </Link>
-            <Link href="/orders" className="btn btn-ghost btn-sm">
-              All instruments
-            </Link>
-          </div>
+          <Link href="/orders" className="cell btn btn-ghost">
+            <span>All orders</span>
+            <span>→</span>
+          </Link>
         </div>
+      </div>
+      </div>
 
-        {/* Right: the document */}
-        <div className="border-t border-line py-12 md:border-t-0 md:border-l md:py-14 md:pl-12">
-          <div className="mono flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-ink-3">
-            <span>{o.id}</span>
-            <span>{new Date(o.created_at).toLocaleString()}</span>
-          </div>
-
-          <div className="mt-8 space-y-7">
-            <Article n="§ 1" title="Parties">
-              Between <span className="underline decoration-line underline-offset-4">{buyer.name}</span> (&ldquo;the Buyer&rdquo;) and Clause (&ldquo;the Store&rdquo;).
-            </Article>
-            <Article n="§ 2" title="Goods">
-              <span className="flex items-start gap-4">
-                <Image src={product.image} alt="" width={56} height={56} className="art mt-1 h-14 w-14 shrink-0 border border-line" />
-                <span>
-                  One <em>{product.name}</em>, listed at <span className="figure">{cents(o.base_cents)}</span>.
-                </span>
-              </span>
-            </Article>
-            {hasClause ? (
-              <>
-                <Article n="§ 3" title="Condition">
-                  Should <span className="underline decoration-line underline-offset-4">{o.contract_label}</span> {teamWord} in {o.event_title}, this instrument is <em>satisfied</em>.
-                  {settled && (
-                    <span className={`ml-2 inline-block align-middle font-sans text-[11px] uppercase tracking-[0.14em] ${triggered ? "text-red" : "text-ink-3"}`}>
-                      {triggered ? "· satisfied" : "· not satisfied"}
-                    </span>
-                  )}
-                </Article>
-                <Article n="§ 4" title="Consideration">
-                  The Buyer paid <span className="figure redline">{cents(o.base_cents)}</span> <span className="figure">{cents(o.paid_cents)}</span>. If satisfied, the Store returns{" "}
-                  <span className="figure text-red">{cents(rebate)}</span>, so that the Buyer will have paid <span className="figure">{cents(o.lose_cents!)}</span>.
-                </Article>
-                <Article n="§ 5" title="Hedge">
-                  {hedge ? (
-                    <>
-                      The Store purchased <span className="figure">{hedge.quantity}</span> &ldquo;{o.contract_label} {teamWord}&rdquo; contracts at <span className="figure">{hedge.price}</span>, costing{" "}
-                      <span className="figure">{cents(hedge.cost_cents)}</span>. The Store nets <span className="figure">{cents(o.paid_cents - hedge.cost_cents)}</span> in either event.
-                    </>
-                  ) : (
-                    <>The Store is placing the matching order on Gemini.</>
-                  )}
-                </Article>
-                <Article n="§ 6" title="Settlement">
-                  Held in USDC escrow on Solana. Released by Gemini&apos;s resolution without further act of either party.
-                </Article>
-              </>
-            ) : (
-              <Article n="§ 3" title="Condition">
-                None attaches. The Buyer paid <span className="figure">{cents(o.paid_cents)}</span>.
-              </Article>
-            )}
-          </div>
-
-          <div className="mt-14">
-            <div className="label">Schedule B · Performance</div>
-            <ol className="mt-4 border-t border-ink">
-              {steps.map((s, i) => (
-                <li key={i} className="grid grid-cols-[20px_1fr] gap-4 border-b border-line-2 py-4 md:grid-cols-[20px_1fr_150px]">
-                  <span className={`mt-[7px] h-2.5 w-2.5 ${s.state === "done" ? "bg-ink" : s.state === "active" ? "live bg-red" : "border border-line"}`} />
-                  <div className="min-w-0">
-                    <div className={`text-[14px] ${s.state === "todo" ? "text-ink-3" : ""}`}>{s.t}</div>
-                    <div className="mt-0.5 text-[12px] text-ink-3">{s.d}</div>
-                    {s.href && (
-                      <a href={s.href} target="_blank" rel="noreferrer" className="label mt-1 inline-block !text-red hover:underline underline-offset-4">
-                        explorer ↗
-                      </a>
-                    )}
-                  </div>
-                  <div className="mono col-start-2 text-[11px] text-ink-3 md:col-start-3 md:text-right">{s.at ? new Date(s.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : ""}</div>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <details className="group mt-12">
-            <summary className="label cursor-pointer list-none select-none hover:!text-ink">
-              Annex · technical particulars <span className="ml-1 inline-block transition group-open:rotate-90">→</span>
-            </summary>
-            <div className="mt-4 border-t border-line pt-4">
-              <dl className="mono grid grid-cols-[130px_1fr] gap-y-2 text-[11.5px]">
-                <dt className="text-ink-3">buyer wallet</dt>
-                <dd className="truncate">{buyer.pubkey}</dd>
-                {o.contract_symbol && (
-                  <>
-                    <dt className="text-ink-3">gemini contract</dt>
-                    <dd className="truncate">{o.contract_symbol}</dd>
-                    <dt className="text-ink-3">hedge</dt>
-                    <dd>{hedge ? `${hedge.quantity} @ ${hedge.price} = ${cents(hedge.cost_cents)} · ${hedge.venue}` : "pending"}</dd>
-                    <dt className="text-ink-3">clause fee</dt>
-                    <dd>{cents(o.fee_cents)}</dd>
-                  </>
+      {/* Right */}
+      <div className="cell">
+        <div className="tag border-b border-fg px-4 py-2">Timeline</div>
+        <ol>
+          {steps.map((s, i) => (
+            <li key={i} className="grid grid-cols-[28px_1fr_auto] gap-3 border-b border-fg px-4 py-4">
+              <span className={`mt-[3px] h-3.5 w-3.5 ${s.state === "done" ? "bg-fg" : s.state === "active" ? "live bg-acc" : "border border-fg"}`} />
+              <div className="min-w-0">
+                <div className={`text-[14px] font-bold uppercase leading-tight ${s.state === "todo" ? "text-mute" : ""}`}>{s.t}</div>
+                <div className="mt-1 text-[12px] text-mute">{s.d}</div>
+                {s.href && (
+                  <a href={s.href} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[10px] font-bold uppercase tracking-[0.1em] text-acc hover:underline">
+                    explorer ↗
+                  </a>
                 )}
-              </dl>
-              <div className="mt-6">
-                <div className="label mb-1">Activity</div>
-                <FeedList rows={rows} compact />
               </div>
-            </div>
-          </details>
-        </div>
-      </div>
-    </div>
-  );
-}
+              <span className="text-[11px] text-mute">{s.at ? new Date(s.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : ""}</span>
+            </li>
+          ))}
+        </ol>
 
-function Article({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[52px_1fr] gap-x-3 md:grid-cols-[96px_1fr]">
-      <div className="pt-[9px]">
-        <div className="sect">{n}</div>
-        <div className="label mt-1 hidden md:block">{title}</div>
+        <div className="tag border-b border-fg px-4 py-2">Under the hood</div>
+        <dl className="grid grid-cols-[130px_1fr] gap-y-2 border-b border-fg px-4 py-4 text-[11.5px]">
+          <dt className="text-mute">buyer wallet</dt>
+          <dd className="truncate">{buyer.pubkey}</dd>
+          {o.contract_symbol && (
+            <>
+              <dt className="text-mute">gemini contract</dt>
+              <dd className="truncate">{o.contract_symbol}</dd>
+              <dt className="text-mute">hedge</dt>
+              <dd>{hedge ? `${hedge.quantity} @ ${hedge.price} = ${cents(hedge.cost_cents)} · ${hedge.venue}` : "pending"}</dd>
+              <dt className="text-mute">store nets</dt>
+              <dd>
+                {cents(o.paid_cents - (hedge?.cost_cents ?? 0))} either way · list {cents(o.base_cents)} + fee {cents(o.fee_cents)}
+              </dd>
+            </>
+          )}
+        </dl>
+        <div className="tag border-b border-fg px-4 py-2">Activity</div>
+        <FeedList rows={rows} compact />
       </div>
-      <div className="body-serif">{children}</div>
     </div>
   );
 }

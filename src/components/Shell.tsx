@@ -9,16 +9,20 @@ import { cents } from "@/lib/pricing";
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <BuyerProvider>
-      <Header />
-      <main className="flex-1">{children}</main>
-      <Footer />
+      <div className="mx-auto w-full max-w-[1440px] px-3 py-3 md:px-6 md:py-5">
+        <div className="frame">
+          <Header />
+          <main>{children}</main>
+          <Footer />
+        </div>
+      </div>
     </BuyerProvider>
   );
 }
 
 const NAV = [
   { href: "/", label: "Goods" },
-  { href: "/how", label: "Mechanics" },
+  { href: "/how", label: "How" },
   { href: "/orders", label: "Orders" },
   { href: "/merchant", label: "Ledger" },
 ];
@@ -27,30 +31,22 @@ function Header() {
   const path = usePathname();
   const active = (href: string) => path === href || (href !== "/" && path.startsWith(href));
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 md:px-6">
-        <Link href="/" className="flex items-baseline gap-3 py-3.5">
-          <span className="serif text-[26px] leading-none">Clause</span>
-          <span className="label hidden sm:inline">Pay less if they lose</span>
+    <header className="sticky top-0 z-40 border-b border-fg bg-bg">
+      <div className="grid-lines grid-cols-[auto_1fr_auto] md:grid-cols-[180px_1fr_auto]">
+        <Link href="/" className="cell inv flex items-center px-4 py-3 text-[18px] font-extrabold uppercase tracking-[-0.04em] md:text-[22px]">
+          Clause
         </Link>
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav className="cell flex overflow-x-auto">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`label py-4 transition hover:!text-ink ${active(n.href) ? "!text-ink underline decoration-red underline-offset-[18px]" : ""}`}>
+            <Link key={n.href} href={n.href} className={`inv flex items-center border-r border-fg px-4 text-[11px] font-bold uppercase tracking-[0.1em] ${active(n.href) ? "bg-fg text-bg" : ""}`}>
               {n.label}
             </Link>
           ))}
         </nav>
-        <div className="ml-auto">
+        <div className="cell flex items-stretch">
           <BuyerChip />
         </div>
       </div>
-      <nav className="flex gap-6 overflow-x-auto border-t border-line-2 px-4 md:hidden">
-        {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={`label whitespace-nowrap py-2.5 ${active(n.href) ? "!text-ink" : ""}`}>
-            {n.label}
-          </Link>
-        ))}
-      </nav>
     </header>
   );
 }
@@ -62,55 +58,52 @@ export function BuyerChip() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  if (loading) return <div className="h-4 w-24 bg-paper-2" />;
-
-  if (!buyer) {
-    return (
-      <div className="relative">
-        <button onClick={() => setOpen((v) => !v)} className="label !text-ink hover:underline underline-offset-4">
-          Sign in
-        </button>
-        {open && (
-          <form
-            className="rise absolute right-0 top-9 w-72 border border-ink bg-paper p-4"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setErr(null);
-              try {
-                await signIn(name);
-                setOpen(false);
-              } catch (er) {
-                setErr((er as Error).message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="label">Party of the first part</div>
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="blank serif mt-2 w-full text-2xl" />
-            <p className="mt-3 text-xs leading-relaxed text-ink-3">No password, no wallet, no seed phrase. A name is all a receipt needs.</p>
-            {err && <p className="mt-2 text-xs text-red">{err}</p>}
-            <button disabled={busy || !name.trim()} className="btn mt-4 w-full">
-              {busy ? "One moment" : "Continue"}
-            </button>
-          </form>
-        )}
-      </div>
-    );
-  }
+  if (loading) return <div className="w-28" />;
 
   return (
-    <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="mono flex items-center gap-3 text-[12px] hover:underline underline-offset-4">
-        <span>{buyer.name}</span>
-        <span className="text-ink-3">{cents(balanceCents)}</span>
+    <div className="relative flex">
+      <button onClick={() => setOpen((v) => !v)} className={`inv flex items-center gap-3 px-4 text-[11px] font-bold uppercase tracking-[0.1em] ${open ? "bg-fg text-bg" : ""}`}>
+        {buyer ? (
+          <>
+            <span>{buyer.name}</span>
+            <span className="font-normal opacity-60">{cents(balanceCents)}</span>
+          </>
+        ) : (
+          "Sign in"
+        )}
       </button>
-      {open && (
-        <div className="rise absolute right-0 top-9 w-72 border border-ink bg-paper p-4">
-          <div className="label">Balance on account</div>
-          <div className="num mt-1 text-3xl">{cents(balanceCents)}</div>
-          <div className="mt-4 grid grid-cols-3 gap-px bg-line">
+      {open && !buyer && (
+        <form
+          className="rise frame absolute right-[-1px] top-[calc(100%+1px)] w-80 bg-bg"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            setErr(null);
+            try {
+              await signIn(name);
+              setOpen(false);
+            } catch (er) {
+              setErr((er as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <div className="tag border-b border-fg px-4 py-2">Who is buying</div>
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="field border-b border-fg" />
+          <p className="px-4 py-3 text-[11px] leading-relaxed text-mute">No password, no wallet, no seed phrase. The chain is our problem.</p>
+          {err && <p className="px-4 pb-2 text-[11px] text-acc">{err}</p>}
+          <button disabled={busy || !name.trim()} className="btn">
+            <span>{busy ? "One sec" : "Continue"}</span>
+            <span>→</span>
+          </button>
+        </form>
+      )}
+      {open && buyer && (
+        <div className="rise frame absolute right-[-1px] top-[calc(100%+1px)] w-80 bg-bg">
+          <div className="tag border-b border-fg px-4 py-2">Balance on account</div>
+          <div className="num-lg px-4 py-4">{cents(balanceCents)}</div>
+          <div className="grid-lines grid-cols-3 border-y border-fg">
             {[5000, 10000, 25000].map((c) => (
               <button
                 key={c}
@@ -126,19 +119,19 @@ export function BuyerChip() {
                     setBusy(false);
                   }
                 }}
-                className="mono bg-paper py-2 text-xs hover:bg-paper-2 disabled:opacity-50"
+                className="cell inv py-3 text-[12px] font-bold disabled:opacity-50"
               >
                 +{cents(c).replace(".00", "")}
               </button>
             ))}
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-ink-3">Adding funds stands in for a card payment. It lands as USDC in a wallet you never have to see.</p>
-          {err && <p className="mt-2 text-xs text-red">{err}</p>}
-          <div className="mt-4 flex items-center justify-between">
-            <Link href="/orders" onClick={() => setOpen(false)} className="label !text-ink hover:underline underline-offset-4">
+          <p className="px-4 py-3 text-[11px] leading-relaxed text-mute">Adding funds stands in for a card payment. It lands as USDC in a wallet you never see.</p>
+          {err && <p className="px-4 pb-2 text-[11px] text-acc">{err}</p>}
+          <div className="grid-lines grid-cols-2 border-t border-fg">
+            <Link href="/orders" onClick={() => setOpen(false)} className="cell inv px-4 py-3 text-center text-[11px] font-bold uppercase tracking-[0.1em]">
               Orders
             </Link>
-            <button onClick={signOut} className="label hover:!text-ink">
+            <button onClick={signOut} className="cell inv px-4 py-3 text-[11px] font-bold uppercase tracking-[0.1em]">
               Sign out
             </button>
           </div>
@@ -150,13 +143,12 @@ export function BuyerChip() {
 
 function Footer() {
   return (
-    <footer className="mt-24 border-t border-line">
-      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-8 md:grid-cols-3 md:px-6">
-        <div className="label">Clause · UBC 2026</div>
-        <div className="text-xs leading-relaxed text-ink-3 md:col-span-2">
-          A demonstration. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet. Nothing here is an offer to anyone, which is a sentence you only find at the bottom of a page like this.
-        </div>
+    <footer className="grid-lines grid-cols-1 border-t border-fg md:grid-cols-[180px_1fr_auto]">
+      <div className="cell px-4 py-3 text-[11px] font-bold uppercase tracking-[0.1em]">Clause</div>
+      <div className="cell px-4 py-3 text-[11px] leading-relaxed text-mute">
+        A demonstration built in a week. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet. Nothing here is an offer to anyone.
       </div>
+      <div className="cell px-4 py-3 text-[11px] uppercase tracking-[0.1em] text-mute">UBC 2026 · Austin</div>
     </footer>
   );
 }

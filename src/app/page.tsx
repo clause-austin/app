@@ -6,6 +6,7 @@ import { featuredEvents, marketDataStatus, type GeminiEvent } from "@/lib/gemini
 import { cents, quote } from "@/lib/pricing";
 import { defaultContract, ask, kickoff, shortWhen, openContracts } from "@/components/market";
 import { OddsTicker } from "@/components/OddsTicker";
+import { Blocks } from "@/components/Blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -24,150 +25,137 @@ export default async function Home() {
   const other = hero && team ? openContracts(hero).find((c) => c.id !== team.id) : undefined;
   const loseAsk = team ? ask(team, "no") : NaN;
   const live = Number.isFinite(loseAsk);
-  const specimen = live && products[0] ? quote(products[0].price_cents, Math.round(products[0].price_cents * 0.3), loseAsk) : null;
 
   return (
     <div>
-      {/* Title page */}
-      <section className="mx-auto max-w-6xl px-4 md:px-6">
-        <div className="grid md:grid-cols-[1.25fr_1fr]">
-          <div className="py-14 md:py-24 md:pr-16">
-            <div className="label">Instrument of conditional sale</div>
-            <h1 className="serif mt-6 text-[64px] leading-[0.92] md:text-[112px]">
+      {/* Hero */}
+      <div className="grid-lines grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
+        <div className="cell flex flex-col justify-between">
+          <div className="tag border-b border-fg px-4 py-2">Conditional pricing · hedged on prediction markets · settled in USDC</div>
+          <div className="px-4 pt-10 pb-8 md:pt-16">
+            <h1 className="h-xl">
               Pay less
               <br />
-              if they <em className="text-red">lose.</em>
+              if they
+              <br />
+              <span className="text-acc">lose.</span>
             </h1>
-            <p className="body-serif mt-10 max-w-[30ch] text-ink-2">
-              Any price can carry a condition. Name the game, name the team, name what you&apos;d rather have paid if it goes wrong. The difference comes back the moment the market settles.
-            </p>
-            <div className="mt-10 flex flex-wrap items-center gap-3">
-              <Link href={`/p/${products[0]?.slug ?? ""}`} className="btn">
-                Draft a clause
-              </Link>
-              <Link href="/how" className="btn btn-ghost">
-                How a store affords this
-              </Link>
-            </div>
           </div>
+          <div className="grid-lines grid-cols-1 border-t border-fg md:grid-cols-[1fr_auto]">
+            <p className="cell max-w-[60ch] px-4 py-4 text-[13px] leading-relaxed">
+              Any price can carry a condition. Pick the game, pick the team, pick what you&apos;d rather have paid if it goes wrong. The store hedges the difference on Gemini the moment you pay, and the escrow returns it the moment the market settles.
+            </p>
+            <Link href={`/p/${products[0]?.slug ?? ""}`} className="cell btn md:w-[240px]">
+              <span>Build one</span>
+              <span>→</span>
+            </Link>
+          </div>
+        </div>
 
-          <aside className="border-t border-line py-10 md:border-t-0 md:border-l md:py-24 md:pl-12">
-            <div className="label">Recital · {md.source === "live" ? "live market" : "last known prices"}</div>
-            {hero && (
-              <div className="mono mt-1 text-[11px] text-ink-3">
-                Kickoff {shortWhen(kickoff(hero, team))}
-                {md.source !== "live" && ` · prices as of ${new Date(md.asOf).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
-              </div>
-            )}
-            {hero && team ? (
-              <>
-                <div className="serif mt-4 text-[34px] leading-[1.05]">{hero.title}</div>
-                <div className="mt-6 space-y-3">
-                  {[team, other].filter(Boolean).map((c) => {
-                    const p = ask(c!, "yes");
-                    return (
-                      <div key={c!.id}>
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-[13px]">{c!.label} to win</span>
-                          <span className="num text-[13px]">{p.toFixed(2)}</span>
-                        </div>
-                        <div className="mt-1.5 h-px bg-line">
-                          <div className="h-px bg-ink" style={{ width: `${Math.round(p * 100)}%` }} />
-                        </div>
+        <div className="cell flex flex-col">
+          <div className="flex items-center justify-between border-b border-fg px-4 py-2">
+            <span className="tag">Market · {md.source === "live" ? "live" : `last known · ${new Date(md.asOf).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}</span>
+            {hero && <span className="tag">{shortWhen(kickoff(hero, team))}</span>}
+          </div>
+          {hero && team ? (
+            <>
+              <div className="h-md px-4 pt-5 pb-4">{hero.title}</div>
+              <div className="grid-lines grid-cols-1 border-t border-fg">
+                {[team, other].filter(Boolean).map((c) => {
+                  const p = ask(c!, "yes");
+                  return (
+                    <div key={c!.id} className="cell px-4 py-4">
+                      <div className="flex items-end justify-between">
+                        <span className="text-[12px] font-bold uppercase tracking-[0.06em]">{c!.label} win</span>
+                        <span className="num-lg">{p.toFixed(2)}</span>
                       </div>
+                      <Blocks fill={p} acc={c!.id === team.id} className="mt-3" />
+                    </div>
+                  );
+                })}
+              </div>
+              {live && products[0] && (
+                <div className="mt-auto border-t border-fg px-4 py-4">
+                  <div className="tag">Example</div>
+                  {(() => {
+                    const q = quote(products[0].price_cents, Math.round(products[0].price_cents * 0.3), loseAsk);
+                    return (
+                      <p className="mt-2 text-[13px] leading-relaxed">
+                        {products[0].name}: <span className="strike">{cents(products[0].price_cents)}</span> <b>{cents(q.winCents)}</b> today. If {team.label} lose, <b className="text-acc">{cents(q.rebateCents)}</b> comes back. Net{" "}
+                        <b>{cents(q.loseCents)}</b>. The store earns {cents(q.merchantRevenueIfNoRebateCents)} either way.
+                      </p>
                     );
-                  })}
+                  })()}
                 </div>
-                {specimen && products[0] && (
-                  <div className="mt-8 border-t border-line pt-5">
-                    <div className="label">Specimen clause</div>
-                    <p className="serif mt-2 text-[19px] leading-snug">
-                      <em>{products[0].name}</em>, listed at <span className="figure redline">{cents(products[0].price_cents)}</span>{" "}
-                      <span className="figure">{cents(specimen.winCents)}</span> today. Should {team.label} lose, <span className="figure">{cents(specimen.rebateCents)}</span> is returned, so the net
-                      price is <span className="figure">{cents(specimen.loseCents)}</span>.
-                    </p>
-                    <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
-                      Gemini prices &ldquo;{team.label} lose&rdquo; at {loseAsk.toFixed(2)}. The store buys {specimen.contractsQty} of those contracts at checkout and earns {cents(specimen.merchantRevenueIfNoRebateCents)} whichever way the game goes.
-                    </p>
+              )}
+            </>
+          ) : (
+            <div className="px-4 py-6 text-mute">No open markets right now.</div>
+          )}
+        </div>
+      </div>
+
+      {events.length > 0 && <OddsTicker events={events.slice(0, 14)} source={md.source} />}
+
+      {/* Goods */}
+      <div className="grid-lines grid-cols-[1fr_auto] border-b border-fg">
+        <div className="cell flex items-baseline gap-4 px-4 py-3">
+          <span className="h-md">Goods</span>
+          <span className="tag">{String(products.length).padStart(2, "0")} items</span>
+        </div>
+        <div className="cell tag flex items-center px-4">{team ? `Clause column: ${team.label} lose · net at 30% of list` : "List prices"}</div>
+      </div>
+      <div className="grid-lines grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {products.map((p, i) => {
+          const q = live ? quote(p.price_cents, Math.round(p.price_cents * 0.3), loseAsk) : null;
+          return (
+            <Link key={p.id} href={`/p/${p.slug}`} className="cell group flex flex-col">
+              <div className="relative aspect-[4/5] overflow-hidden border-b border-fg bg-faint">
+                <Image src={p.image} alt={p.name} fill sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" />
+                <span className="absolute left-0 top-0 bg-fg px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-bg">{String(i + 1).padStart(2, "0")}</span>
+              </div>
+              <div className="inv flex flex-1 flex-col px-4 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-[16px] font-extrabold uppercase leading-none tracking-[-0.02em]">{p.name}</span>
+                  <span className="num-md">{cents(p.price_cents)}</span>
+                </div>
+                <div className="tag mt-1">{p.tagline}</div>
+                {q && (
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="tag">Today</div>
+                      <div className="mt-1 text-[15px] font-bold">{cents(q.winCents)}</div>
+                    </div>
+                    <div>
+                      <div className="tag">Back if lose</div>
+                      <div className="mt-1 text-[15px] font-bold text-acc group-hover:text-bg">{cents(q.rebateCents)}</div>
+                    </div>
+                    <div>
+                      <div className="tag">Net</div>
+                      <div className="mt-1 text-[15px] font-bold">{cents(q.loseCents)}</div>
+                    </div>
                   </div>
                 )}
-              </>
-            ) : (
-              <p className="mt-4 text-ink-3">No open markets right now.</p>
-            )}
-          </aside>
-        </div>
-      </section>
-
-      {events.length > 0 && <OddsTicker events={events.slice(0, 14)} />}
-
-      {/* Schedule A: goods */}
-      <section className="mx-auto max-w-6xl px-4 py-16 md:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="label">Schedule A</div>
-            <h2 className="serif mt-2 text-[40px] leading-none">Goods</h2>
-          </div>
-          {team && <div className="label">Clause column assumes {team.label} lose · net price at 30% of list</div>}
-        </div>
-
-        <div className="mt-8 overflow-x-auto">
-          <table className="ledger min-w-[640px]">
-            <thead>
-              <tr>
-                <th className="w-12">No.</th>
-                <th>Item</th>
-                <th className="r">List</th>
-                <th className="r">Pay today</th>
-                <th className="r">Returned if they lose</th>
-                <th className="r">Net</th>
-                <th className="w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p, i) => {
-                const q = live ? quote(p.price_cents, Math.round(p.price_cents * 0.3), loseAsk) : null;
-                return (
-                  <tr key={p.id} className="group relative hover:bg-paper-2/70">
-                    <td className="mono text-ink-3">{String(i + 1).padStart(2, "0")}</td>
-                    <td>
-                      <Link href={`/p/${p.slug}`} className="flex items-center gap-4 after:absolute after:inset-0">
-                        <Image src={p.image} alt="" width={44} height={44} className="art h-11 w-11 shrink-0" />
-                        <span>
-                          <span className="serif block text-[20px] leading-none">{p.name}</span>
-                          <span className="mt-1 block text-xs text-ink-3">{p.tagline}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="num r">{cents(p.price_cents)}</td>
-                    <td className="num r">{q ? cents(q.winCents) : "–"}</td>
-                    <td className="num r text-red">{q ? cents(q.rebateCents) : "–"}</td>
-                    <td className="num r">{q ? cents(q.loseCents) : "–"}</td>
-                    <td className="mono r text-ink-3 transition group-hover:text-red">→</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Mechanics */}
-      <section className="border-t border-line">
-        <div className="mx-auto grid max-w-6xl md:grid-cols-3">
-          {[
-            ["§ 1", "You set the terms", "Choose the game, the team, and what you would be content paying if it goes badly. Today's price is solved from the live odds, not set by us."],
-            ["§ 2", "The store hedges", "On execution the store buys the matching contract on Gemini's prediction market. Its revenue is identical either way, so it can say yes to anyone."],
-            ["§ 3", "Money moves itself", "Your payment waits in a USDC escrow on Solana. The market's resolution releases it: your share back to you, the store's to the store. No refunds desk."],
-          ].map(([n, t, d], i) => (
-            <div key={n} className={`px-4 py-10 md:px-8 ${i > 0 ? "border-t border-line md:border-t-0 md:border-l" : ""}`}>
-              <div className="sect">{n}</div>
-              <div className="serif mt-3 text-[28px] leading-tight">{t}</div>
-              <p className="mt-3 max-w-[38ch] text-[13.5px] leading-relaxed text-ink-2">{d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="grid-lines grid-cols-1 border-t border-fg md:grid-cols-3">
+        {[
+          ["01", "You set the terms", "Game, team, and the price you'd be content with if it goes badly. Today's price is solved from the live odds."],
+          ["02", "The store hedges", "On payment the store buys the matching contract on Gemini. Its revenue is identical either way, so it can say yes to anyone."],
+          ["03", "Money moves itself", "Your payment sits in USDC escrow on Solana. The market's resolution releases it: yours back to you, the store's to the store."],
+        ].map(([n, t, d]) => (
+          <div key={n} className="cell px-4 py-6">
+            <div className="tag">{n}</div>
+            <div className="h-md mt-3">{t}</div>
+            <p className="mt-3 max-w-[40ch] text-[12.5px] leading-relaxed text-mute">{d}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

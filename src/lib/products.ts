@@ -8,7 +8,7 @@ export const PRODUCTS = [
     id: "prd_hoodie",
     slug: "gameday-hoodie",
     name: "Gameday Hoodie",
-    tagline: "Heavyweight fleece. Burnt orange, obviously.",
+    tagline: "Heavyweight fleece. Burnt orange.",
     description:
       "14oz brushed fleece, dropped shoulder, kangaroo pocket. The one you wear from tailgate to the fourth quarter and, if things go badly, straight to bed.",
     price_cents: 6800,
@@ -19,7 +19,7 @@ export const PRODUCTS = [
     id: "prd_cap",
     slug: "forty-acres-cap",
     name: "Forty Acres Cap",
-    tagline: "Unstructured, sun-faded, already broken in.",
+    tagline: "Unstructured, six-panel, already broken in.",
     description: "Six-panel cotton twill with a brass slider. Looks like you've had it since freshman year.",
     price_cents: 3400,
     accent: "#A24A00",
@@ -29,7 +29,7 @@ export const PRODUCTS = [
     id: "prd_tee",
     slug: "tower-tee",
     name: "Tower Tee",
-    tagline: "The tower lit orange, printed on cream.",
+    tagline: "Ringspun cotton, boxy cut, white.",
     description: "Ringspun cotton, boxy cut, water-based ink. Glows a little under stadium lights.",
     price_cents: 3200,
     accent: "#D97B2B",
@@ -50,7 +50,7 @@ export const PRODUCTS = [
     slug: "tailgate-tumbler",
     name: "Tailgate Tumbler",
     tagline: "30oz, insulated, dishwasher-indifferent.",
-    description: "Keeps it cold through a double overtime. Powder coat in burnt orange with a cream lid.",
+    description: "Keeps it cold through a double overtime. Powder coat with a flip lid.",
     price_cents: 2800,
     accent: "#E08A3C",
     sort: 5,
@@ -74,7 +74,7 @@ export function seedProducts() {
      VALUES (@id, @slug, @name, @tagline, @description, @price_cents, @image, @accent, @sort)`,
   );
   const tx = d.transaction(() => {
-    for (const p of PRODUCTS) stmt.run({ ...p, image: `/products/${p.slug}.svg` });
+    for (const p of PRODUCTS) stmt.run({ ...p, image: `/products/${p.slug}.jpg` });
   });
   tx();
 }
