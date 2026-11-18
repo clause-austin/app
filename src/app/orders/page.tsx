@@ -1,5 +1,6 @@
 "use client";
 
+import { condition } from "@/lib/phrase";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
@@ -64,7 +65,7 @@ export default function OrdersPage() {
                 </div>
                 <div className="hidden px-4 py-4 md:block">
                   <div className="tag">Condition</div>
-                  <div className="mt-1 text-[12px]">{o.event_title ? `${o.contract_label} ${o.rebate_side === "no" ? "lose" : "win"} · ${o.event_title}` : "none"}</div>
+                  <div className="mt-1 text-[12px]">{o.event_title ? `${condition(o.contract_label, o.event_ticker, o.rebate_side === "no" ? "no" : "yes")} · ${o.event_title}` : "none"}</div>
                 </div>
                 <div className="hidden px-4 py-4 md:block">
                   <div className="tag">Paid</div>

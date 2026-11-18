@@ -7,15 +7,16 @@ import path from "node:path";
 import { env } from "./env";
 import { cents } from "./pricing";
 import type { OrderRow } from "./db";
+import { condition } from "./phrase";
 
 export function settlementScript(o: OrderRow, buyerName: string, productName: string): string {
   if (!o.event_title) return `Thanks ${buyerName}. Your ${productName} is on its way.`;
-  const team = o.contract_label ?? "your team";
-  const outcomeWord = o.rebate_side === "no" ? "lost" : "won";
+  const side = o.rebate_side === "no" ? "no" : "yes";
+  const other = side === "no" ? "yes" : "no";
   if (o.outcome === "rebate") {
-    return `${buyerName}, ${team} ${outcomeWord}. Your clause just triggered. ${cents(o.paid_cents - (o.lose_cents ?? 0))} is back in your account, so that ${productName} cost you ${cents(o.lose_cents ?? 0)}.`;
+    return `${buyerName}, ${condition(o.contract_label, o.event_ticker, side, "past")}. Your clause just triggered. ${cents(o.paid_cents - (o.lose_cents ?? 0))} is back in your account, so that ${productName} cost you ${cents(o.lose_cents ?? 0)}.`;
   }
-  return `${buyerName}, ${team} ${outcomeWord === "lost" ? "won" : "lost"}, so your clause didn't trigger. You paid ${cents(o.paid_cents)} for the ${productName}. Enjoy it.`;
+  return `${buyerName}, ${condition(o.contract_label, o.event_ticker, other, "past")}, so your clause didn't trigger. You paid ${cents(o.paid_cents)} for the ${productName}. Enjoy it.`;
 }
 
 export function hasElevenLabs(): boolean {

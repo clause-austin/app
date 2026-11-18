@@ -15,7 +15,7 @@ export function FeedList({ rows, compact = false }: { rows: FeedRow[]; compact?:
             {r.detail && <div className="truncate text-[11px] text-mute">{r.detail}</div>}
             {r.href && (
               <a href={r.href} target="_blank" rel="noreferrer" className="text-[10px] font-bold uppercase tracking-[0.1em] text-acc hover:underline">
-                explorer ↗
+                {r.href.includes("gemini") ? "gemini" : "explorer"} ↗
               </a>
             )}
           </div>

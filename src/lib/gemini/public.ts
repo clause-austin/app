@@ -7,8 +7,10 @@ import path from "node:path";
 import { env } from "../env";
 import { SNAPSHOT_EVENTS, SNAPSHOT_AT } from "./snapshot";
 import { marketStatus as status } from "./status";
+import { SANDBOX_PREFIX } from "../phrase";
 
 const PUBLIC_BASE = "https://api.gemini.com/v1/prediction-markets";
+const SANDBOX_PUBLIC_BASE = "https://api.sandbox.gemini.com/v1/prediction-markets";
 // Sandbox public data mirrors production for reads; we always read production prices
 // so quotes reflect a real order book, and route orders to whichever env is configured.
 export const geminiTradingBase =
@@ -98,8 +100,8 @@ function saveDisk(key: string, value: unknown) {
   }, 500);
 }
 
-async function get<T>(p: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
-  const url = new URL(PUBLIC_BASE + p);
+async function get<T>(p: string, params?: Record<string, string | string[] | undefined>, base = PUBLIC_BASE): Promise<T> {
+  const url = new URL(base + p);
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v === undefined) continue;
     if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x));
@@ -153,6 +155,10 @@ export async function listEvents(opts: {
 }
 
 export async function getEvent(ticker: string): Promise<GeminiEvent> {
+  if (ticker.startsWith(SANDBOX_PREFIX)) {
+    const raw = await get<GeminiEvent>(`/events/${encodeURIComponent(ticker.slice(SANDBOX_PREFIX.length))}`, undefined, SANDBOX_PUBLIC_BASE);
+    return tagSandbox(raw);
+  }
   try {
     return await get(`/events/${encodeURIComponent(ticker)}`);
   } catch (e) {
@@ -190,16 +196,60 @@ export function askFor(c: GeminiContract, side: "yes" | "no"): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Curated discovery for the storefront: Texas teams first, then the busiest game markets. */
+/* ---------- Sandbox crypto windows ----------
+   The Gemini sandbox (where our API key trades) lists its own markets: 5-minute, 15-minute and
+   hourly "is BTC/ETH/SOL up" windows. A clause on one of these gets a REAL sandbox hedge order
+   and a real resolution from Gemini within the hour, so they're offered next to the sports books. */
+const ASSET: Record<string, string> = { BTC: "Bitcoin", ETH: "Ether", SOL: "Solana" };
+
+export function sandboxTradingEnabled(): boolean {
+  return env.geminiEnv === "sandbox" && Boolean(env.geminiApiKey && env.geminiApiSecret);
+}
+
+function tagSandbox(e: GeminiEvent): GeminiEvent {
+  const m = e.ticker.match(/^(BTC|ETH|SOL|XRP)(05M|15M)?(\d{10})$/);
+  const asset = m ? ASSET[m[1]] ?? m[1] : e.title;
+  const window = m?.[2] === "05M" ? "5-minute window" : m?.[2] === "15M" ? "15-minute window" : "hourly window";
+  return {
+    ...e,
+    ticker: SANDBOX_PREFIX + e.ticker,
+    title: `${asset} · ${window}`,
+    category: "Crypto",
+    contracts: e.contracts.map((c) => ({ ...c, label: asset })),
+  };
+}
+
+/** Open sandbox windows with enough time left to hedge, soonest first. */
+export async function sandboxEvents(): Promise<GeminiEvent[]> {
+  if (!sandboxTradingEnabled()) return [];
+  let r: { data: GeminiEvent[] };
+  try {
+    r = await get("/events", { status: ["active"], limit: "40" }, SANDBOX_PUBLIC_BASE);
+  } catch {
+    return [];
+  }
+  const soonest = Date.now() + 3 * 60_000;
+  return r.data
+    .filter((e) => /^(BTC|ETH|SOL)(05M|15M)?\d{10}$/.test(e.ticker))
+    .filter((e) => e.contracts.length === 1 && e.contracts[0].marketState !== "closed")
+    .filter((e) => new Date(e.contracts[0].expiryDate ?? e.expiryDate ?? 0).getTime() > soonest)
+    .sort((a, b) => new Date(a.contracts[0].expiryDate ?? 0).getTime() - new Date(b.contracts[0].expiryDate ?? 0).getTime())
+    .slice(0, 6)
+    .map(tagSandbox)
+    .filter(isClauseable);
+}
+
+/** Curated discovery for the storefront: Texas teams first, then the busiest game markets, then live sandbox crypto windows. */
 export async function featuredEvents(): Promise<GeminiEvent[]> {
   let texas: { data: GeminiEvent[] };
   let sports: { data: GeminiEvent[] };
+  const crypto = sandboxEvents();
   try {
     [texas, sports] = await Promise.all([listEvents({ search: "Texas", limit: 40 }), listEvents({ category: "Sports", limit: 120 })]);
   } catch {
     status.source = "snapshot";
     status.asOf = SNAPSHOT_AT;
-    return SNAPSHOT_EVENTS.filter(isClauseable);
+    return [...SNAPSHOT_EVENTS.filter(isClauseable), ...(await crypto)];
   }
   const seen = new Set<string>();
   const out: GeminiEvent[] = [];
@@ -215,5 +265,5 @@ export async function featuredEvents(): Promise<GeminiEvent[]> {
   sports.data
     .sort((a, b) => Number(b.volume ?? 0) - Number(a.volume ?? 0))
     .forEach(push);
-  return out.slice(0, 24);
+  return [...out.slice(0, 24), ...(await crypto)];
 }

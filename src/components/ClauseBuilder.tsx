@@ -6,6 +6,7 @@ import type { GeminiEvent, GeminiContract } from "@/lib/gemini/public";
 import { quote, loseBounds, cents, type Quote } from "@/lib/pricing";
 import { openContracts, ask, kickoff, shortWhen, defaultContract } from "./market";
 import { useBuyer } from "./buyer";
+import { condition, conditionWords, isCryptoTicker } from "@/lib/phrase";
 
 type Props = {
   product: { slug: string; name: string; priceCents: number };
@@ -31,8 +32,17 @@ export function ClauseBuilder({ product, events }: Props) {
     setLoseCents((v) => Math.min(bounds.max, Math.max(bounds.min, v)));
   }, [bounds.min, bounds.max]);
   useEffect(() => {
-    if (event) setContractId(defaultContract(event)?.id ?? "");
+    if (!event) return;
+    const c = defaultContract(event);
+    setContractId(c?.id ?? "");
+    setLoseCents(Math.round(product.priceCents * 0.3));
+    // Crypto windows price one side near 0.97; default to the cheap side so the headline price stays sane.
+    if (isCryptoTicker(event.ticker) && c) setWhen(ask(c, "yes") < ask(c, "no") ? "win" : "lose");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event]);
+  const crypto = isCryptoTicker(event?.ticker);
+  const words = conditionWords(event?.ticker);
+  const clauseText = contract ? condition(contract.label, event?.ticker, rebateSide) : "";
 
   const q: Quote | null = enabled && contract && Number.isFinite(askPrice) ? quote(product.priceCents, loseCents, askPrice) : null;
 
@@ -49,7 +59,7 @@ export function ClauseBuilder({ product, events }: Props) {
         const r = await fetch("/api/copilot", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ productName: product.name, eventTitle: event.title, teamLabel: contract.label, rebateWhen: when, quote: q }),
+          body: JSON.stringify({ productName: product.name, eventTitle: event.title, teamLabel: contract.label, rebateWhen: crypto ? words[rebateSide] : when, quote: q }),
         });
         if (r.ok) setExplain(await r.json());
       } catch {
@@ -121,20 +131,29 @@ export function ClauseBuilder({ product, events }: Props) {
         <>
           {/* Game */}
           <div className="border-b border-fg">
-            <div className="tag px-4 pt-3">01 · The game</div>
+            <div className="tag px-4 pt-3">01 · {crypto ? "The market" : "The game"}</div>
             <select value={event.ticker} onChange={(e) => setEventTicker(e.target.value)} className="seg !pb-4 !pt-2 text-[15px]" aria-label="Game">
-              {events.map((e) => (
+              {events.filter((e) => !isCryptoTicker(e.ticker)).map((e) => (
                 <option key={e.ticker} value={e.ticker}>
                   {e.title} · {shortWhen(kickoff(e))}
                 </option>
               ))}
+              {events.some((e) => isCryptoTicker(e.ticker)) && (
+                <optgroup label="Crypto · live on Gemini sandbox">
+                  {events.filter((e) => isCryptoTicker(e.ticker)).map((e) => (
+                    <option key={e.ticker} value={e.ticker}>
+                      {e.title} · closes {kickoff(e)?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
           {/* Team + condition */}
           <div className="grid-lines grid-cols-1 border-b border-fg sm:grid-cols-2">
             <div className="cell">
-              <div className="tag px-4 pt-3">02 · The team</div>
+              <div className="tag px-4 pt-3">02 · {crypto ? "The asset" : "The team"}</div>
               <div className="grid-lines mt-2 grid-cols-2 border-t border-fg">
                 {contracts.map((c) => (
                   <button key={c.id} onClick={() => setContractId(c.id)} className={`seg cell truncate ${c.id === contract.id ? "on" : ""}`} title={c.label}>
@@ -144,11 +163,11 @@ export function ClauseBuilder({ product, events }: Props) {
               </div>
             </div>
             <div className="cell">
-              <div className="tag px-4 pt-3">03 · Pay less if they</div>
+              <div className="tag px-4 pt-3">03 · Pay less if {crypto ? "it" : "they"}</div>
               <div className="grid-lines mt-2 grid-cols-2 border-t border-fg">
                 {(["lose", "win"] as const).map((w) => (
                   <button key={w} onClick={() => setWhen(w)} className={`seg cell ${when === w ? "on" : ""}`}>
-                    {w}
+                    {w === "lose" ? words.no : words.yes}
                   </button>
                 ))}
               </div>
@@ -159,7 +178,7 @@ export function ClauseBuilder({ product, events }: Props) {
           <div className="border-b border-fg px-4 pt-3 pb-5">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <div className="tag">04 · If {contract.label} {when}, I want to have paid</div>
+                <div className="tag">04 · If {clauseText}, I want to have paid</div>
                 <div className="num-xl mt-2">{cents(loseCents)}</div>
               </div>
               <div className="text-right">
@@ -196,17 +215,17 @@ export function ClauseBuilder({ product, events }: Props) {
               <div className="num-cell">{cents(q.winCents)}</div>
             </div>
             <div className="cell cell-acc px-4 py-4">
-              <div className="tag tag-fg opacity-70">Back if {contract.label} {when}</div>
+              <div className="tag tag-fg opacity-70">Back if {clauseText}</div>
               <div className="mt-2 text-[12px] opacity-70">net {cents(q.loseCents)}</div>
               <div className="num-cell">{cents(q.rebateCents)}</div>
             </div>
             <div className="cell px-4 py-4">
               <div className="tag">Market says</div>
-              <div className="mt-2 text-[12px] text-mute">{contract.label} {when}</div>
+              <div className="mt-2 text-[12px] text-mute">{clauseText}</div>
               <div className="num-cell">{Math.round(q.probability * 100)}%</div>
             </div>
             <div className="cell px-4 py-4">
-              <div className="tag">Store hedge</div>
+              <div className="tag">Store hedge{crypto ? " · live" : ""}</div>
               <div className="mt-2 text-[12px] text-mute">
                 {q.contractsQty} × @ {q.hedgePrice.toFixed(2)}
               </div>

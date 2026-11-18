@@ -4,6 +4,7 @@
 import { db, newId, type OrderRow, type BuyerRow, type ProductRow, type HedgeRow } from "./db";
 import { quote } from "./pricing";
 import { getEvent, askFor, type GeminiEvent, type GeminiContract } from "./gemini/public";
+import { condition, eventUrl } from "./phrase";
 import { geminiTradingEnabled, placeHedgeOrder } from "./gemini/trading";
 import { env } from "./env";
 import {
@@ -284,7 +285,7 @@ export async function hedge(row: OrderRow): Promise<HedgeRow> {
     title: `Hedged: bought ${h.quantity} × ${row.contract_label} ${row.rebate_side!.toUpperCase()} @ ${h.price}`,
     detail: `${venue === "paper" ? `${fallbackNote ? fallbackNote + " · " : ""}Paper order at live Gemini price` : `Gemini ${env.geminiEnv} order ${geminiOrderId}`} · cost ${cents(costCents)}`,
     order_id: row.id,
-    href: `https://www.gemini.com/prediction-markets/event/${encodeURIComponent(row.event_ticker!)}`,
+    href: eventUrl(row.event_ticker!),
   });
   return h;
 }
@@ -325,7 +326,7 @@ export async function settleEvent(opts: {
 
     const rebateCents = triggered ? o.paid_cents - o.lose_cents! : 0;
     const seller = o.seller_id ? getBuyer(o.seller_id) : undefined;
-    const outcomeNote = `${o.contract_label} ${side === "yes" ? "won" : "lost"} · ${triggered ? "clause triggered" : "clause did not trigger"}`;
+    const outcomeNote = `${condition(o.contract_label, o.event_ticker, side, "past")} · ${triggered ? "clause triggered" : "clause did not trigger"}`;
 
     let settleTx: string | null = null;
     let sellerTx: string | null = null;

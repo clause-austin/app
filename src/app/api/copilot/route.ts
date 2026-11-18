@@ -8,7 +8,7 @@ const Body = z.object({
   productName: z.string(),
   eventTitle: z.string(),
   teamLabel: z.string(),
-  rebateWhen: z.enum(["win", "lose"]),
+  rebateWhen: z.string().max(20),
   quote: z.object({
     baseCents: z.number(),
     loseCents: z.number(),

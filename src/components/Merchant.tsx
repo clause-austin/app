@@ -1,5 +1,6 @@
 "use client";
 
+import { condition } from "@/lib/phrase";
 import { useCallback, useEffect, useState } from "react";
 import type { OrderRow, HedgeRow } from "@/lib/db";
 import { cents } from "@/lib/pricing";
@@ -159,7 +160,7 @@ export function Merchant() {
                         {o.event_ticker ? (
                           <>
                             <div className="truncate font-bold">
-                              {o.contract_label} {o.rebate_side === "no" ? "lose" : "win"}
+                              {condition(o.contract_label, o.event_ticker, o.rebate_side === "no" ? "no" : "yes")}
                             </div>
                             <div className="truncate text-mute">{o.event_title}</div>
                           </>
@@ -232,14 +233,14 @@ export function Merchant() {
               <div className="cell px-4 py-3">
                 <div className="font-bold uppercase">{o.event_title}</div>
                 <div className="text-[11px] text-mute">
-                  {open.filter((x) => x.event_ticker === o.event_ticker).length} open · resolves {o.expiry_at ? new Date(o.expiry_at).toLocaleString() : "after the game"}
+                  {open.filter((x) => x.event_ticker === o.event_ticker).length} open · resolves {o.expiry_at ? new Date(o.expiry_at).toLocaleString() : "on resolution"}
                 </div>
               </div>
               <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "yes")} disabled={busy !== null || !admin} className="cell btn btn-ghost sm:w-[160px]">
-                <span>{o.contract_label} win</span>
+                <span>{condition(o.contract_label, o.event_ticker, "yes")}</span>
               </button>
               <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "no")} disabled={busy !== null || !admin} className="cell btn sm:w-[160px]">
-                <span>{o.contract_label} lose</span>
+                <span>{condition(o.contract_label, o.event_ticker, "no")}</span>
               </button>
             </div>
           ))}

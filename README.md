@@ -90,7 +90,9 @@ The treasury is fee payer for every transaction, so buyers never hold SOL. Every
 
 **Hedging on Gemini.** Quotes always read live public prices from `api.gemini.com/v1/prediction-markets` (no key needed). With `GEMINI_API_KEY`/`SECRET` set, each clause places an immediate-or-cancel limit order on the rebate side via `POST /v1/prediction-markets/order`; without keys, hedges are recorded as paper fills at the live ask and labelled as such in the back office. Settlement is read from `contract.resolutionSide` on the event.
 
-**Hedge venue.** Market data and the catalog come from production Gemini (real sports books). The sandbox lists only its own 15-minute BTC markets, so a live sandbox hedge on a sports symbol is rejected with `SymbolNotFound`; the app then books a paper hedge at the live price and says so in the feed. Orders that paid but never got a hedge row are re-hedged on boot.
+**Hedge venue.** Market data and the catalog come from production Gemini (real sports books). The sandbox, where the API key trades, lists only its own 5/15/60-minute crypto windows ("is BTC/ETH/SOL up"), so a live sandbox hedge on a sports symbol is rejected with `SymbolNotFound`; the app then books a paper hedge at the live price and says so in the feed.
+
+**Crypto clauses (fully live).** When sandbox trading is configured, open sandbox windows are offered next to the games as "Bitcoin · 15-minute window" etc. (tickers prefixed `sbx:`, see `src/lib/phrase.ts`). A clause on one of these places a **real** IOC order on Gemini sandbox (order id on the receipt) and settles from Gemini's own resolution when the window closes, usually within the hour, with no admin desk involved. Orders that paid but never got a hedge row are re-hedged on boot.
 
 **Escrow watcher.** A QuickNode Streams Solana stream (filter source in `docs/quicknode-filter.go`, JS twin in `docs/quicknode-filter.js`) filtered to the escrow address posts to `/api/webhooks/quicknode`; the HMAC signature (`x-qn-nonce + x-qn-timestamp + body`) is verified before ingest. Without a stream token, an in-process RPC poller emits identical feed events so the dashboard behaves the same.
 

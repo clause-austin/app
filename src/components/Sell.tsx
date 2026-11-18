@@ -1,5 +1,6 @@
 "use client";
 
+import { condition } from "@/lib/phrase";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -140,7 +141,7 @@ export function Sell() {
                     {sales.map((s) => (
                       <li key={s.id} className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-fg/20 px-4 py-2 last:border-b-0">
                         <span className="truncate">
-                          <b>{s.buyer_name}</b> {s.event_title ? `· ${s.contract_label} ${s.rebate_side === "no" ? "lose" : "win"}` : "· no clause"}
+                          <b>{s.buyer_name}</b> {s.event_title ? `· ${condition(s.contract_label, s.event_ticker, s.rebate_side === "no" ? "no" : "yes")}` : "· no clause"}
                         </span>
                         <span className="text-mute">{s.status === "rebated" ? "triggered" : s.status === "settled" ? "settled" : "open"}</span>
                         <span className="font-bold">{s.status === "settled" || s.status === "rebated" ? cents(s.base_cents) : `${cents(s.base_cents)} locked`}</span>

@@ -5,6 +5,7 @@
 import { getEvent } from "./gemini/public";
 import { openEventTickers, settleEvent } from "./orders";
 import { publish } from "./feed";
+import { eventUrl } from "./phrase";
 
 const g = globalThis as unknown as { __clauseResolver?: NodeJS.Timeout };
 
@@ -35,7 +36,7 @@ export async function tick(): Promise<number> {
         title: `${ev.title} resolved`,
         detail: `${c.label}: ${side.toUpperCase()}`,
         order_id: null,
-        href: `https://www.gemini.com/prediction-markets/event/${encodeURIComponent(ev.ticker)}`,
+        href: eventUrl(ev.ticker),
       });
       const rows = await settleEvent({ eventTicker: ev.ticker, contractSymbol: c.instrumentSymbol, resolutionSide: side, source: "gemini" });
       settled += rows.length;

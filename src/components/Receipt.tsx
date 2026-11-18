@@ -8,6 +8,7 @@ import { cents } from "@/lib/pricing";
 import { useFeed } from "./useFeed";
 import { FeedList } from "./FeedList";
 import { Blocks } from "./Blocks";
+import { condition, isCryptoTicker } from "@/lib/phrase";
 
 type Payload = {
   order: OrderRow;
@@ -88,20 +89,23 @@ export function Receipt({ id }: { id: string }) {
   const hasClause = Boolean(o.event_ticker);
   const settled = o.status === "settled" || o.status === "rebated";
   const triggered = o.outcome === "rebate";
-  const teamWord = o.rebate_side === "no" ? "lose" : "win";
-  const resultWord = settled ? (triggered ? (teamWord === "lose" ? "lost" : "won") : teamWord === "lose" ? "won" : "lost") : null;
+  const rebateSide: "yes" | "no" = o.rebate_side === "no" ? "no" : "yes";
+  const happened: "yes" | "no" = triggered ? rebateSide : rebateSide === "no" ? "yes" : "no";
+  const clauseText = condition(o.contract_label, o.event_ticker, rebateSide);
+  const resultText = condition(o.contract_label, o.event_ticker, happened, "past");
+  const crypto = isCryptoTicker(o.event_ticker);
   const rebate = hasClause ? o.paid_cents - o.lose_cents! : 0;
   const finalPaid = settled && triggered ? o.lose_cents! : o.paid_cents;
 
-  const headline = settled ? (triggered ? "Triggered." : hasClause ? "No rebate." : "Done.") : hasClause ? "Waiting on the game." : "Done.";
+  const headline = settled ? (triggered ? "Triggered." : hasClause ? "No rebate." : "Done.") : hasClause ? (crypto ? "Waiting on the market." : "Waiting on the game.") : "Done.";
   const sub = settled
     ? triggered
-      ? `${o.contract_label} ${resultWord}. ${cents(rebate)} is back in your balance. The ${product.name} cost you ${cents(o.lose_cents!)}.`
+      ? `${resultText}. ${cents(rebate)} is back in your balance. The ${product.name} cost you ${cents(o.lose_cents!)}.`
       : hasClause
-        ? `${o.contract_label} ${resultWord}, so the clause didn't trigger. Your payment has been released to the store.`
+        ? `${resultText}, so the clause didn't trigger. Your payment has been released to the store.`
         : "Paid in full, no clause attached."
     : hasClause
-      ? "Your payment is in escrow and the store has already hedged your clause. Nobody has to do anything when the game ends."
+      ? `Your payment is in escrow and the store has already hedged your clause. Nobody has to do anything when the ${crypto ? "window closes" : "game ends"}.`
       : "Paid in full, no clause attached.";
 
   const steps: { t: string; d: string; at?: number | null; state: "done" | "active" | "todo"; href?: string | null }[] = [
@@ -115,8 +119,8 @@ export function Receipt({ id }: { id: string }) {
             state: (hedge ? "done" : "active") as "done" | "active",
           },
           {
-            t: settled ? `${o.contract_label} ${resultWord}` : `${o.event_title}`,
-            d: settled ? "Market resolved on Gemini" : o.expiry_at ? `Resolves ${new Date(o.expiry_at).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : "Resolves after the game",
+            t: settled ? resultText : `${o.event_title}`,
+            d: settled ? "Market resolved on Gemini" : o.expiry_at ? `Resolves ${new Date(o.expiry_at).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })}` : crypto ? "Resolves when the window closes" : "Resolves after the game",
             at: o.settled_at ?? null,
             state: (settled ? "done" : hedge ? "active" : "todo") as "done" | "active" | "todo",
           },
@@ -152,7 +156,7 @@ export function Receipt({ id }: { id: string }) {
             <div className="tag mt-1">for {buyer.name}</div>
             {hasClause && (
               <div className="mt-3 text-[12px]">
-                Clause: <b>{o.contract_label} {teamWord}</b> · {o.event_title}
+                Clause: <b>{clauseText}</b> · {o.event_title}
               </div>
             )}
           </div>
