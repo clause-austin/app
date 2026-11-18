@@ -1,6 +1,6 @@
 import { db } from "./db";
 
-/* Burnt Orange Supply Co.: a fan shop in Austin. Images are inline SVG data URIs so the
+/* Demo catalogue: Texas gameday gear. Images are inline SVG data URIs so the
    demo has zero external asset dependencies. */
 
 export const PRODUCTS = [

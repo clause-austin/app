@@ -123,8 +123,8 @@ export function Receipt({ id }: { id: string }) {
         <div className="receipt-edge bg-paper px-7 pt-7 pb-10 shadow-[0_30px_60px_-30px_rgba(60,30,0,0.5)]">
           <div className="flex items-start justify-between">
             <div>
-              <div className="font-display text-xl font-semibold">Burnt Orange Supply Co.</div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Austin, TX</div>
+              <div className="font-display text-xl font-semibold">Clause</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Pay less if they lose</div>
             </div>
             <div className="text-right font-mono text-[11px] text-ink-3">
               <div>{o.id}</div>

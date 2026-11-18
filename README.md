@@ -17,7 +17,7 @@
 
 ## What it is
 
-Burnt Orange Supply Co. is a fan shop in Austin. Every item has a sticker price and, optionally, a **clause**:
+The demo store sells Texas gameday gear. Every item has a sticker price and, optionally, a **clause**:
 
 > Gameday Hoodie, $68. Or pay **$73.77 today and get $53.77 back if Texas lose**, so it cost you $20.
 

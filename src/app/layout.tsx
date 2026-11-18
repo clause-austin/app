@@ -12,8 +12,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Burnt Orange Supply Co. · Pay less if they lose",
-  description: "A fan shop where every price can carry a clause. Hedged on Gemini prediction markets, settled in USDC on Solana.",
+  title: "Clause · Pay less if they lose",
+  description: "Clause: a checkout where any price can carry a real-world condition. Hedged on Gemini prediction markets, settled in USDC on Solana.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

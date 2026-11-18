@@ -30,8 +30,8 @@ function Header() {
         <Link href="/" className="flex items-center gap-3">
           <Mark />
           <div className="leading-tight">
-            <div className="font-display text-[19px] font-semibold tracking-tight"><span className="sm:hidden">Burnt Orange</span><span className="hidden sm:inline">Burnt Orange Supply Co.</span></div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Austin, TX · est. this week</div>
+            <div className="font-display text-[19px] font-semibold tracking-tight">Clause</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Pay less if they lose</div>
           </div>
         </Link>
         <nav className="ml-auto hidden items-center gap-1 md:flex">
@@ -181,7 +181,7 @@ function Footer() {
     <footer className="mt-20 border-t border-line/70">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-xs text-ink-3 md:flex-row md:items-center md:justify-between">
         <div>
-          Burnt Orange Supply Co. is a demo store. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet.
+          Clause is a demo checkout. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet.
         </div>
         <div className="font-mono">clause · UBC 2026</div>
       </div>
