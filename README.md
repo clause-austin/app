@@ -90,7 +90,7 @@ The treasury is fee payer for every transaction, so buyers never hold SOL. Every
 
 **Hedging on Gemini.** Quotes always read live public prices from `api.gemini.com/v1/prediction-markets` (no key needed). With `GEMINI_API_KEY`/`SECRET` set, each clause places an immediate-or-cancel limit order on the rebate side via `POST /v1/prediction-markets/order`; without keys, hedges are recorded as paper fills at the live ask and labelled as such in the back office. Settlement is read from `contract.resolutionSide` on the event.
 
-**Escrow watcher.** A QuickNode Streams Solana stream filtered to the escrow address posts to `/api/webhooks/quicknode`; the HMAC signature (`x-qn-nonce + x-qn-timestamp + body`) is verified before ingest. Without a stream token, an in-process RPC poller emits identical feed events so the dashboard behaves the same.
+**Escrow watcher.** A QuickNode Streams Solana stream (filter source in `docs/quicknode-filter.go`, JS twin in `docs/quicknode-filter.js`) filtered to the escrow address posts to `/api/webhooks/quicknode`; the HMAC signature (`x-qn-nonce + x-qn-timestamp + body`) is verified before ingest. Without a stream token, an in-process RPC poller emits identical feed events so the dashboard behaves the same.
 
 **Voice.** On settlement the receipt page announces the result ("Kevin, Texas lost. Your clause just triggered…") via ElevenLabs TTS, cached per order; without a key it falls back to the browser's speech synthesis.
 
