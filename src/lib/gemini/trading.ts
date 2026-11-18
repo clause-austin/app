@@ -12,14 +12,18 @@ export function geminiTradingEnabled(): boolean {
   return Boolean(env.geminiApiKey && env.geminiApiSecret);
 }
 
-let lastNonce = 0;
+/** Time-based nonce (key created with "uses a time based nonce"): Unix seconds, must be within 30s of server time. */
 function nonce(): number {
-  const n = Math.max(Date.now(), lastNonce + 1);
-  lastNonce = n;
-  return n;
+  return Math.floor(Date.now() / 1000);
+}
+
+/** Master-account keys ("master-…") must name the sub-account on every request. */
+function accountField(): Record<string, string> {
+  return env.geminiApiKey.startsWith("master-") ? { account: env.geminiAccount } : {};
 }
 
 async function signedPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  body = { ...accountField(), ...body };
   const payload = { request: path, nonce: nonce(), ...body };
   const b64 = Buffer.from(JSON.stringify(payload)).toString("base64");
   const sig = crypto.createHmac("sha384", env.geminiApiSecret).update(b64).digest("hex");
@@ -48,7 +52,7 @@ async function signedPost<T>(path: string, body: Record<string, unknown>): Promi
 }
 
 async function signedGet<T>(path: string): Promise<T> {
-  const payload = { request: path, nonce: nonce() };
+  const payload = { request: path, nonce: nonce(), ...accountField() };
   const b64 = Buffer.from(JSON.stringify(payload)).toString("base64");
   const sig = crypto.createHmac("sha384", env.geminiApiSecret).update(b64).digest("hex");
   const res = await fetch(geminiTradingBase + path, {

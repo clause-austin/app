@@ -90,6 +90,8 @@ The treasury is fee payer for every transaction, so buyers never hold SOL. Every
 
 **Hedging on Gemini.** Quotes always read live public prices from `api.gemini.com/v1/prediction-markets` (no key needed). With `GEMINI_API_KEY`/`SECRET` set, each clause places an immediate-or-cancel limit order on the rebate side via `POST /v1/prediction-markets/order`; without keys, hedges are recorded as paper fills at the live ask and labelled as such in the back office. Settlement is read from `contract.resolutionSide` on the event.
 
+**Hedge venue.** Market data and the catalog come from production Gemini (real sports books). The sandbox lists only its own 15-minute BTC markets, so a live sandbox hedge on a sports symbol is rejected with `SymbolNotFound`; the app then books a paper hedge at the live price and says so in the feed. Orders that paid but never got a hedge row are re-hedged on boot.
+
 **Escrow watcher.** A QuickNode Streams Solana stream (filter source in `docs/quicknode-filter.go`, JS twin in `docs/quicknode-filter.js`) filtered to the escrow address posts to `/api/webhooks/quicknode`; the HMAC signature (`x-qn-nonce + x-qn-timestamp + body`) is verified before ingest. Without a stream token, an in-process RPC poller emits identical feed events so the dashboard behaves the same.
 
 **Voice.** On settlement the receipt page announces the result ("Kevin, Texas lost. Your clause just triggered…") via ElevenLabs TTS, cached per order; without a key it falls back to the browser's speech synthesis.
@@ -115,7 +117,7 @@ For fully offline development, `npm run setup:solana -- --test-mint` against a l
 |---|---|---|
 | `SOLANA_RPC_URL` | RPC endpoint (a QuickNode devnet endpoint is ideal) | public devnet |
 | `USDC_MINT` | SPL mint for payments | Circle devnet USDC `4zMMC9…ncDU` |
-| `GEMINI_API_KEY`, `GEMINI_API_SECRET`, `GEMINI_ENV` | Real hedge orders on Gemini sandbox/production | Paper hedges at live prices |
+| `GEMINI_API_KEY`, `GEMINI_API_SECRET`, `GEMINI_ENV`, `GEMINI_ACCOUNT` | Real hedge orders on Gemini sandbox/production (key must be created with **time-based nonce**; a `master-…` key needs `GEMINI_ACCOUNT`, default `primary`) | Paper hedges at live prices |
 | `QUICKNODE_WEBHOOK_TOKEN` | Verifies QuickNode Streams webhooks | RPC poller on the escrow wallet |
 | `ELEVENLABS_API_KEY` | Spoken settlement announcements | Browser speech synthesis |
 | `XAI_API_KEY` | Grok writes the checkout explanation | Templated copy |

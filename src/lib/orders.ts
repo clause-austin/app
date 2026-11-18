@@ -219,26 +219,38 @@ export async function hedge(row: OrderRow): Promise<HedgeRow> {
   const qty = Number(row.contracts_qty);
   const price = Number(row.hedge_price);
   const live = geminiTradingEnabled();
-  const venue = live ? `gemini:${env.geminiEnv}` : "paper";
+  let venue = live ? `gemini:${env.geminiEnv}` : "paper";
   const hid = newId("hdg");
   let status: HedgeRow["status"] = "filled";
   let geminiOrderId: string | null = null;
   let raw: string | null = null;
   let fillPrice = price;
+  let fallbackNote: string | null = null;
 
   if (live) {
-    // limit a tick above the ask so an IOC order fills on a thin book
-    const res = await placeHedgeOrder({
-      symbol: row.contract_symbol!,
-      outcome: row.rebate_side!,
-      quantity: qty,
-      limitPrice: Math.min(0.99, price + 0.01),
-    });
-    geminiOrderId = String(res.orderId);
-    raw = JSON.stringify(res);
-    const filled = Number(res.filledQuantity ?? (res.status === "filled" ? res.quantity : 0));
-    status = filled > 0 ? "filled" : "open";
-    if (res.avgExecutionPrice) fillPrice = Number(res.avgExecutionPrice);
+    try {
+      // limit a tick above the ask so an IOC order fills on a thin book
+      const res = await placeHedgeOrder({
+        symbol: row.contract_symbol!,
+        outcome: row.rebate_side!,
+        quantity: qty,
+        limitPrice: Math.min(0.99, price + 0.01),
+      });
+      geminiOrderId = String(res.orderId);
+      raw = JSON.stringify(res);
+      const filled = Number(res.filledQuantity ?? (res.status === "filled" ? res.quantity : 0));
+      status = filled > 0 ? "filled" : "open";
+      if (res.avgExecutionPrice) fillPrice = Number(res.avgExecutionPrice);
+    } catch (e) {
+      // The sandbox lists only a handful of markets (15-minute BTC contracts); sports symbols come
+      // from production. When the venue can't take the symbol, book a paper hedge at the live price
+      // so the order still settles correctly, and say so in the feed.
+      const msg = (e as Error).message;
+      console.warn("[hedge] venue rejected order, booking paper hedge:", msg);
+      venue = "paper";
+      raw = JSON.stringify({ error: msg });
+      fallbackNote = /SymbolNotFound/.test(msg) ? `Gemini ${env.geminiEnv} doesn't list this market` : `Gemini ${env.geminiEnv} rejected the order`;
+    }
   }
 
   const costCents = Math.round(qty * fillPrice * 100);
@@ -270,7 +282,7 @@ export async function hedge(row: OrderRow): Promise<HedgeRow> {
     kind: "hedge",
     source: "gemini",
     title: `Hedged: bought ${h.quantity} × ${row.contract_label} ${row.rebate_side!.toUpperCase()} @ ${h.price}`,
-    detail: `${venue === "paper" ? "Paper order at live Gemini price" : `Gemini ${env.geminiEnv} order ${geminiOrderId}`} · cost ${cents(costCents)}`,
+    detail: `${venue === "paper" ? `${fallbackNote ? fallbackNote + " · " : ""}Paper order at live Gemini price` : `Gemini ${env.geminiEnv} order ${geminiOrderId}`} · cost ${cents(costCents)}`,
     order_id: row.id,
     href: `https://www.gemini.com/prediction-markets/event/${encodeURIComponent(row.event_ticker!)}`,
   });

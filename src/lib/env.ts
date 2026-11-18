@@ -15,6 +15,7 @@ export const env = {
   geminiEnv: str("GEMINI_ENV", "sandbox") as "sandbox" | "production",
   geminiApiKey: str("GEMINI_API_KEY"),
   geminiApiSecret: str("GEMINI_API_SECRET"),
+  geminiAccount: str("GEMINI_ACCOUNT", "primary"),
 
   elevenLabsApiKey: str("ELEVENLABS_API_KEY"),
   elevenLabsVoiceId: str("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"),
