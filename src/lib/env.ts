@@ -1,4 +1,5 @@
 import path from "node:path";
+import { marketStatus } from "./gemini/status";
 
 function str(name: string, fallback = ""): string {
   const v = process.env[name];
@@ -28,7 +29,7 @@ export function integrationStatus() {
   return {
     solana: { configured: true, rpc: env.solanaRpcUrl, mint: env.usdcMint, network: "devnet" },
     gemini: {
-      marketData: "live", // public endpoints need no key
+      marketData: marketStatus.source, // public endpoints need no key; cached/snapshot when Gemini is down
       hedging: env.geminiApiKey && env.geminiApiSecret ? `live:${env.geminiEnv}` : "paper",
     },
     elevenlabs: env.elevenLabsApiKey ? "live" : "browser-speech",

@@ -30,15 +30,12 @@ export function ClauseBuilder({ product, events }: Props) {
   useEffect(() => {
     setLoseCents((v) => Math.min(bounds.max, Math.max(bounds.min, v)));
   }, [bounds.min, bounds.max]);
-
-  // reset team when the game changes
   useEffect(() => {
     if (event) setContractId(defaultContract(event)?.id ?? "");
   }, [event]);
 
   const q: Quote | null = enabled && contract && Number.isFinite(askPrice) ? quote(product.priceCents, loseCents, askPrice) : null;
 
-  // Copilot explanation (debounced)
   const [explain, setExplain] = useState<{ text: string; source: string } | null>(null);
   const timer = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
@@ -65,7 +62,6 @@ export function ClauseBuilder({ product, events }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q?.winCents, q?.loseCents, contract?.id, when, event?.ticker]);
 
-  // Checkout
   const [name, setName] = useState("");
   const [busy, setBusy] = useState<"idle" | "funding" | "paying">("idle");
   const [err, setErr] = useState<string | null>(null);
@@ -77,14 +73,13 @@ export function ClauseBuilder({ product, events }: Props) {
     try {
       if (!buyer) {
         if (!name.trim()) {
-          setErr("Tell us your name first.");
+          setErr("Fill in the Buyer's name in § 1.");
           return;
         }
         await signIn(name);
       }
       if (short > 0) {
         setBusy("funding");
-        // round up to the next $10 so the balance looks like a card top-up, not an exact match
         await topUp(Math.min(50_000, Math.max(100, Math.ceil(short / 1000) * 1000)));
       }
       setBusy("paying");
@@ -107,163 +102,152 @@ export function ClauseBuilder({ product, events }: Props) {
   }
 
   const fill = bounds.max > bounds.min ? ((loseCents - bounds.min) / (bounds.max - bounds.min)) * 100 : 100;
+  const settles = event ? shortWhen(kickoff(event, contract)) : "";
 
   return (
-    <div className="rounded-3xl border border-line bg-paper shadow-[0_30px_80px_-40px_rgba(60,30,0,0.5)]">
-      {/* Header toggle */}
-      <div className="flex items-center justify-between border-b border-line px-6 py-5">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Optional</div>
-          <div className="font-display text-2xl font-semibold">Add a clause</div>
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="label">Instrument of conditional sale · draft</div>
+        <div className="flex border border-line">
+          {[
+            ["with", true],
+            ["without", false],
+          ].map(([l, v]) => (
+            <button
+              key={String(l)}
+              disabled={events.length === 0 && v === true}
+              onClick={() => setEnabled(v as boolean)}
+              className={`label px-3 py-1.5 transition disabled:opacity-40 ${enabled === v ? "bg-ink !text-paper" : "hover:!text-ink"}`}
+            >
+              {l as string} clause
+            </button>
+          ))}
         </div>
-        <button
-          onClick={() => setEnabled((v) => !v)}
-          disabled={events.length === 0}
-          aria-pressed={enabled}
-          className={`relative h-8 w-14 rounded-full transition ${enabled ? "bg-orange" : "bg-line"} disabled:opacity-40`}
-        >
-          <span className={`absolute top-1 h-6 w-6 rounded-full bg-paper shadow transition-all ${enabled ? "left-7" : "left-1"}`} />
-        </button>
       </div>
 
-      {enabled && event && contract ? (
-        <div className="px-6 py-5">
-          {/* Game */}
-          <label className="block text-xs font-medium text-ink-3">The game</label>
-          <select
-            value={event.ticker}
-            onChange={(e) => setEventTicker(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2.5 text-sm outline-none focus:border-orange"
-          >
-            {events.map((e) => (
-              <option key={e.ticker} value={e.ticker}>
-                {e.title} · {shortWhen(kickoff(e))}
-              </option>
-            ))}
-          </select>
+      <div className="mt-8 space-y-7">
+        <Article n="§ 1" title="Parties">
+          This instrument is made between{" "}
+          {buyer ? <span className="underline decoration-line underline-offset-4">{buyer.name}</span> : <input value={name} onChange={(e) => setName(e.target.value)} placeholder="your name" className="blank" size={Math.max(10, name.length + 2)} />}{" "}
+          (&ldquo;the Buyer&rdquo;) and Clause (&ldquo;the Store&rdquo;).
+        </Article>
 
-          {/* Team + condition */}
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-ink-3">The team</label>
-              <div className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-cream p-1">
+        <Article n="§ 2" title="Goods">
+          One <em>{product.name}</em>, listed at <span className="figure">{cents(product.priceCents)}</span>.
+        </Article>
+
+        {enabled && event && contract && q ? (
+          <>
+            <Article n="§ 3" title="Condition">
+              Should{" "}
+              <select value={contract.id} onChange={(e) => setContractId(e.target.value)} className="blank">
                 {contracts.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setContractId(c.id)}
-                    className={`truncate rounded-lg px-2 py-2 text-sm font-medium transition ${c.id === contract.id ? "bg-ink text-cream" : "hover:bg-cream-2"}`}
-                    title={c.label}
-                  >
+                  <option key={c.id} value={c.id}>
                     {c.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-ink-3">I pay less if they</label>
-              <div className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-cream p-1">
-                {(["lose", "win"] as const).map((w) => (
-                  <button key={w} onClick={() => setWhen(w)} className={`rounded-lg px-2 py-2 text-sm font-medium transition ${when === w ? "bg-ink text-cream" : "hover:bg-cream-2"}`}>
-                    {w}
-                  </button>
+              </select>{" "}
+              <select value={when} onChange={(e) => setWhen(e.target.value as "lose" | "win")} className="blank">
+                <option value="lose">lose</option>
+                <option value="win">win</option>
+              </select>{" "}
+              in{" "}
+              <select value={event.ticker} onChange={(e) => setEventTicker(e.target.value)} className="blank max-w-full" style={{ maxWidth: "min(100%, 22ch)", textOverflow: "ellipsis" }}>
+                {events.map((e) => (
+                  <option key={e.ticker} value={e.ticker}>
+                    {e.title} · {shortWhen(kickoff(e))}
+                  </option>
                 ))}
-              </div>
-            </div>
-          </div>
+              </select>
+              , settling {settles}, this instrument is <em>satisfied</em>.
+              <Note>
+                Gemini presently prices &ldquo;{contract.label} {when}&rdquo; at {q.hedgePrice.toFixed(2)}, an implied {Math.round(q.probability * 100)}% chance.
+              </Note>
+            </Article>
 
-          {/* Slider */}
-          <div className="mt-6">
-            <div className="flex items-baseline justify-between">
-              <label className="text-xs font-medium text-ink-3">
-                If {contract.label} {when}, I want to have paid
-              </label>
-              <span className="scoreboard text-2xl font-semibold text-orange">{cents(loseCents)}</span>
-            </div>
-            <input
-              type="range"
-              className="clause-range mt-3"
-              style={{ ["--fill" as string]: `${fill}%` }}
-              min={bounds.min}
-              max={bounds.max}
-              step={100}
-              value={loseCents}
-              onChange={(e) => setLoseCents(Number(e.target.value))}
-            />
-            <div className="mt-1 flex justify-between text-[11px] text-ink-3">
-              <span>{cents(bounds.min)} (bold)</span>
-              <span>{cents(bounds.max)} (no clause)</span>
-            </div>
-          </div>
-
-          {/* The deal */}
-          {q && (
-            <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-line">
-              <div className="bg-ink p-4 text-cream">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-cream/60">You pay today</div>
-                <div className="scoreboard mt-1 text-4xl font-semibold">{cents(q.winCents)}</div>
-                <div className="mt-1 text-xs text-cream/60">
-                  that&apos;s it if {contract.label} {when === "lose" ? "win" : "lose"}
+            <Article n="§ 4" title="Consideration">
+              On execution the Buyer pays <span className="figure redline">{cents(product.priceCents)}</span> <span className="figure">{cents(q.winCents)}</span>. If satisfied, the Store returns{" "}
+              <span className="figure text-red">{cents(q.rebateCents)}</span> to the Buyer, so that the Buyer will have paid <span className="figure">{cents(q.loseCents)}</span>.
+              <div className="mt-5 border border-line p-4">
+                <div className="flex items-baseline justify-between">
+                  <span className="label">Net price if satisfied</span>
+                  <span className="num text-[18px]">{cents(loseCents)}</span>
+                </div>
+                <input
+                  type="range"
+                  className="tick mt-2"
+                  style={{ ["--fill" as string]: `${fill}%` }}
+                  min={bounds.min}
+                  max={bounds.max}
+                  step={100}
+                  value={loseCents}
+                  onChange={(e) => setLoseCents(Number(e.target.value))}
+                  aria-label="Net price if the clause is satisfied"
+                />
+                <div className="mono flex justify-between text-[10.5px] text-ink-3">
+                  <span>{cents(bounds.min)} · bold</span>
+                  <span>{cents(bounds.max)} · no clause</span>
                 </div>
               </div>
-              <div className="bg-orange-soft/60 p-4">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">If {contract.label} {when}</div>
-                <div className="scoreboard mt-1 text-4xl font-semibold text-orange">{cents(q.rebateCents)}</div>
-                <div className="mt-1 text-xs text-ink-2">comes back · you&apos;ll have paid {cents(q.loseCents)}</div>
-              </div>
-              <div className="col-span-2 flex items-center justify-between gap-3 border-t border-line bg-cream px-4 py-2.5 text-xs text-ink-2">
-                <span>
-                  Market says <span className="font-semibold text-ink">{Math.round(q.probability * 100)}%</span> chance {contract.label} {when}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="live-dot h-1.5 w-1.5 rounded-full bg-green" /> hedged on Gemini at {q.hedgePrice.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          )}
+            </Article>
 
-          {explain && (
-            <p className="mt-4 text-sm leading-relaxed text-ink-2">
-              {explain.text}
-              <span className="ml-2 align-middle text-[10px] uppercase tracking-widest text-ink-3">{explain.source === "grok" ? "Grok" : "Store copy"}</span>
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="px-6 py-5 text-sm text-ink-3">
-          {events.length === 0 ? "No open game markets right now. The sticker price applies." : "No clause: you pay the sticker price and that's the end of it."}
-        </div>
+            <Article n="§ 5" title="Hedge">
+              The Store shall at once purchase <span className="figure">{q.contractsQty}</span> &ldquo;{contract.label} {when}&rdquo; contracts on Gemini at <span className="figure">{q.hedgePrice.toFixed(2)}</span>, costing{" "}
+              <span className="figure">{cents(q.hedgeCostCents)}</span>. The Store&apos;s proceeds are <span className="figure">{cents(product.priceCents)}</span> plus a clause fee of{" "}
+              <span className="figure">{cents(q.feeCents)}</span> in either event.
+            </Article>
+
+            <Article n="§ 6" title="Settlement">
+              The consideration is held in USDC escrow on Solana and released by Gemini&apos;s resolution of the market, without further act of either party.
+            </Article>
+          </>
+        ) : (
+          <Article n="§ 3" title="Condition">
+            {events.length === 0 ? "None available. No game markets are open, so the list price applies." : <>None attaches. The Buyer pays <span className="figure">{cents(product.priceCents)}</span> and the matter is closed.</>}
+          </Article>
+        )}
+      </div>
+
+      {explain && (
+        <p className="mt-8 border-t border-line-2 pt-4 text-[12px] leading-relaxed text-ink-3">
+          <sup className="sect mr-1">1</sup>
+          {explain.text} <span className="label ml-1">{explain.source === "grok" ? "Grok" : "House note"}</span>
+        </p>
       )}
 
-      {/* Checkout */}
-      <div className="border-t border-line bg-cream/60 px-6 py-5">
-        {!buyer && (
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name for the receipt"
-            className="mb-3 w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-orange"
-          />
-        )}
-        <div className="flex items-center justify-between">
+      <div className="mt-10 border-t border-ink pt-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Due now</div>
-            <div className="scoreboard text-3xl font-semibold">{cents(due)}</div>
+            <div className="label">Due on execution</div>
+            <div className="num mt-1 text-[40px] leading-none">{cents(due)}</div>
           </div>
-          <button
-            onClick={buy}
-            disabled={busy !== "idle"}
-            className="rounded-full bg-orange px-7 py-3.5 text-sm font-semibold text-cream shadow-lg shadow-orange/30 transition hover:bg-ink disabled:opacity-60"
-          >
-            {busy === "funding" ? "Adding funds…" : busy === "paying" ? "Placing order…" : q ? "Buy with clause" : "Buy"}
+          <button onClick={buy} disabled={busy !== "idle"} className="btn">
+            {busy === "funding" ? "Funding account" : busy === "paying" ? "Executing" : "Execute instrument"}
           </button>
         </div>
         {buyer && short > 0 && (
-          <p className="mt-2 text-xs text-ink-3">
-            Balance {cents(balanceCents)}. We&apos;ll add {cents(Math.ceil(short / 1000) * 1000)} as part of checkout.
+          <p className="mono mt-3 text-[11px] text-ink-3">
+            Balance {cents(balanceCents)}. {cents(Math.ceil(short / 1000) * 1000)} will be added on execution.
           </p>
         )}
-        {err && <p className="mt-2 text-sm text-red">{err}</p>}
+        {err && <p className="mt-3 text-[12.5px] text-red">{err}</p>}
       </div>
     </div>
   );
+}
+
+function Article({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[52px_1fr] gap-x-3 md:grid-cols-[96px_1fr]">
+      <div className="pt-[9px]">
+        <div className="sect">{n}</div>
+        <div className="label mt-1 hidden md:block">{title}</div>
+      </div>
+      <div className="body-serif">{children}</div>
+    </div>
+  );
+}
+
+function Note({ children }: { children: React.ReactNode }) {
+  return <div className="mt-2 font-sans text-[12px] leading-relaxed text-ink-3">{children}</div>;
 }

@@ -16,63 +16,42 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const NAV = [
+  { href: "/", label: "Goods" },
+  { href: "/how", label: "Mechanics" },
+  { href: "/orders", label: "Orders" },
+  { href: "/merchant", label: "Ledger" },
+];
+
 function Header() {
   const path = usePathname();
-  const nav = [
-    { href: "/", label: "Shop" },
-    { href: "/how", label: "How a clause works" },
-    { href: "/orders", label: "My orders" },
-    { href: "/merchant", label: "Back office" },
-  ];
+  const active = (href: string) => path === href || (href !== "/" && path.startsWith(href));
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-cream/85 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-        <Link href="/" className="flex items-center gap-3">
-          <Mark />
-          <div className="leading-tight">
-            <div className="font-display text-[19px] font-semibold tracking-tight">Clause</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-3">Pay less if they lose</div>
-          </div>
+    <header className="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 md:px-6">
+        <Link href="/" className="flex items-baseline gap-3 py-3.5">
+          <span className="serif text-[26px] leading-none">Clause</span>
+          <span className="label hidden sm:inline">Pay less if they lose</span>
         </Link>
-        <nav className="ml-auto hidden items-center gap-1 md:flex">
-          {nav.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`rounded-full px-3 py-1.5 text-sm transition ${
-                path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "bg-ink text-cream" : "text-ink-2 hover:bg-cream-2"
-              }`}
-            >
+        <nav className="hidden items-center gap-7 md:flex">
+          {NAV.map((n) => (
+            <Link key={n.href} href={n.href} className={`label py-4 transition hover:!text-ink ${active(n.href) ? "!text-ink underline decoration-red underline-offset-[18px]" : ""}`}>
               {n.label}
             </Link>
           ))}
         </nav>
-        <BuyerChip />
+        <div className="ml-auto">
+          <BuyerChip />
+        </div>
       </div>
-      <nav className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden">
-        {nav.map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs transition ${
-              path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "bg-ink text-cream" : "text-ink-2 hover:bg-cream-2"
-            }`}
-          >
+      <nav className="flex gap-6 overflow-x-auto border-t border-line-2 px-4 md:hidden">
+        {NAV.map((n) => (
+          <Link key={n.href} href={n.href} className={`label whitespace-nowrap py-2.5 ${active(n.href) ? "!text-ink" : ""}`}>
             {n.label}
           </Link>
         ))}
       </nav>
     </header>
-  );
-}
-
-function Mark() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden>
-      <rect x="1" y="1" width="32" height="32" rx="8" fill="var(--orange)" />
-      <path d="M8 22 L17 10 L26 22" stroke="var(--cream)" strokeWidth="3" fill="none" strokeLinejoin="round" />
-      <circle cx="17" cy="24" r="2.2" fill="var(--cream)" />
-    </svg>
   );
 }
 
@@ -83,17 +62,17 @@ export function BuyerChip() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  if (loading) return <div className="h-9 w-28 animate-pulse rounded-full bg-cream-2" />;
+  if (loading) return <div className="h-4 w-24 bg-paper-2" />;
 
   if (!buyer) {
     return (
       <div className="relative">
-        <button onClick={() => setOpen((v) => !v)} className="rounded-full border border-ink px-4 py-1.5 text-sm font-medium hover:bg-ink hover:text-cream">
+        <button onClick={() => setOpen((v) => !v)} className="label !text-ink hover:underline underline-offset-4">
           Sign in
         </button>
         {open && (
           <form
-            className="pop absolute right-0 mt-2 w-72 rounded-2xl border border-line bg-paper p-4 shadow-xl"
+            className="rise absolute right-0 top-9 w-72 border border-ink bg-paper p-4"
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
@@ -108,18 +87,12 @@ export function BuyerChip() {
               }
             }}
           >
-            <div className="font-display text-lg">What should we call you?</div>
-            <p className="mt-1 text-xs text-ink-3">No password, no wallet, no seed phrase. Just a name on the receipt.</p>
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Kevin"
-              className="mt-3 w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm outline-none focus:border-orange"
-            />
+            <div className="label">Party of the first part</div>
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="blank serif mt-2 w-full text-2xl" />
+            <p className="mt-3 text-xs leading-relaxed text-ink-3">No password, no wallet, no seed phrase. A name is all a receipt needs.</p>
             {err && <p className="mt-2 text-xs text-red">{err}</p>}
-            <button disabled={busy || !name.trim()} className="mt-3 w-full rounded-lg bg-orange px-3 py-2 text-sm font-semibold text-cream disabled:opacity-50">
-              {busy ? "One sec…" : "Continue"}
+            <button disabled={busy || !name.trim()} className="btn mt-4 w-full">
+              {busy ? "One moment" : "Continue"}
             </button>
           </form>
         )}
@@ -129,16 +102,15 @@ export function BuyerChip() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1.5 text-sm hover:border-ink">
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-orange text-[11px] font-bold text-cream">{buyer.name[0]?.toUpperCase()}</span>
-        <span className="font-medium">{buyer.name}</span>
-        <span className="tabular text-ink-3">{cents(balanceCents)}</span>
+      <button onClick={() => setOpen((v) => !v)} className="mono flex items-center gap-3 text-[12px] hover:underline underline-offset-4">
+        <span>{buyer.name}</span>
+        <span className="text-ink-3">{cents(balanceCents)}</span>
       </button>
       {open && (
-        <div className="pop absolute right-0 mt-2 w-72 rounded-2xl border border-line bg-paper p-4 shadow-xl">
-          <div className="text-xs uppercase tracking-widest text-ink-3">Store balance</div>
-          <div className="scoreboard mt-1 text-3xl font-semibold">{cents(balanceCents)}</div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rise absolute right-0 top-9 w-72 border border-ink bg-paper p-4">
+          <div className="label">Balance on account</div>
+          <div className="num mt-1 text-3xl">{cents(balanceCents)}</div>
+          <div className="mt-4 grid grid-cols-3 gap-px bg-line">
             {[5000, 10000, 25000].map((c) => (
               <button
                 key={c}
@@ -154,19 +126,19 @@ export function BuyerChip() {
                     setBusy(false);
                   }
                 }}
-                className="rounded-lg border border-line bg-cream px-2 py-1.5 text-sm font-medium hover:border-orange disabled:opacity-50"
+                className="mono bg-paper py-2 text-xs hover:bg-paper-2 disabled:opacity-50"
               >
                 +{cents(c).replace(".00", "")}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-snug text-ink-3">Adding funds stands in for a card payment. Under the hood it lands as USDC in a wallet you never have to see.</p>
+          <p className="mt-3 text-[11px] leading-relaxed text-ink-3">Adding funds stands in for a card payment. It lands as USDC in a wallet you never have to see.</p>
           {err && <p className="mt-2 text-xs text-red">{err}</p>}
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <Link href="/orders" onClick={() => setOpen(false)} className="underline decoration-line underline-offset-2 hover:decoration-ink">
-              My orders
+          <div className="mt-4 flex items-center justify-between">
+            <Link href="/orders" onClick={() => setOpen(false)} className="label !text-ink hover:underline underline-offset-4">
+              Orders
             </Link>
-            <button onClick={signOut} className="text-ink-3 hover:text-ink">
+            <button onClick={signOut} className="label hover:!text-ink">
               Sign out
             </button>
           </div>
@@ -178,12 +150,12 @@ export function BuyerChip() {
 
 function Footer() {
   return (
-    <footer className="mt-20 border-t border-line/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-xs text-ink-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          Clause is a demo checkout. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet.
+    <footer className="mt-24 border-t border-line">
+      <div className="mx-auto grid max-w-6xl gap-4 px-4 py-8 md:grid-cols-3 md:px-6">
+        <div className="label">Clause · UBC 2026</div>
+        <div className="text-xs leading-relaxed text-ink-3 md:col-span-2">
+          A demonstration. Prices with a clause are hedged on Gemini prediction markets and settled in USDC on Solana devnet. Nothing here is an offer to anyone, which is a sentence you only find at the bottom of a page like this.
         </div>
-        <div className="font-mono">clause · UBC 2026</div>
       </div>
     </footer>
   );

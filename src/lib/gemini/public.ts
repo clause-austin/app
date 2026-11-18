@@ -2,7 +2,11 @@
  * Gemini Prediction Markets, public (unauthenticated) market data.
  * Base: https://api.gemini.com/v1/prediction-markets
  */
+import fs from "node:fs";
+import path from "node:path";
 import { env } from "../env";
+import { SNAPSHOT_EVENTS, SNAPSHOT_AT } from "./snapshot";
+import { marketStatus as status } from "./status";
 
 const PUBLIC_BASE = "https://api.gemini.com/v1/prediction-markets";
 // Sandbox public data mirrors production for reads; we always read production prices
@@ -56,12 +60,46 @@ export type GeminiEvent = {
   imageUrl?: string;
 };
 
-/* Tiny TTL cache: quotes and storefront share the same few reads; Gemini's public limit is 120/min. */
+/* Three layers of market data, so a demo never goes blank:
+   1. in-memory TTL cache (Gemini's public limit is 120/min),
+   2. last-good responses persisted to disk, served stale if Gemini errors,
+   3. a hand-captured snapshot of the headline market (see snapshot.ts). */
 const cache = new Map<string, { at: number; value: unknown }>();
 const TTL_MS = 15_000;
+const DISK = path.resolve(path.dirname(env.databasePath), "gemini-cache.json");
 
-async function get<T>(path: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
-  const url = new URL(PUBLIC_BASE + path);
+export function marketDataStatus() {
+  return { ...status };
+}
+
+let disk: Record<string, { at: number; value: unknown }> | null = null;
+function loadDisk() {
+  if (disk) return disk;
+  try {
+    disk = JSON.parse(fs.readFileSync(DISK, "utf8")) as Record<string, { at: number; value: unknown }>;
+  } catch {
+    disk = {};
+  }
+  return disk;
+}
+let flushTimer: NodeJS.Timeout | null = null;
+function saveDisk(key: string, value: unknown) {
+  const d = loadDisk();
+  d[key] = { at: Date.now(), value };
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    try {
+      fs.mkdirSync(path.dirname(DISK), { recursive: true });
+      fs.writeFileSync(DISK, JSON.stringify(d));
+    } catch {
+      /* best effort */
+    }
+  }, 500);
+}
+
+async function get<T>(p: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
+  const url = new URL(PUBLIC_BASE + p);
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v === undefined) continue;
     if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, x));
@@ -70,11 +108,32 @@ async function get<T>(path: string, params?: Record<string, string | string[] | 
   const key = url.toString();
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
-  const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Gemini ${res.status} on ${path}`);
-  const value = (await res.json()) as T;
-  cache.set(key, { at: Date.now(), value });
-  return value;
+  try {
+    const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    if (!res.ok) throw new Error(`Gemini ${res.status} on ${p}`);
+    const value = (await res.json()) as T;
+    cache.set(key, { at: Date.now(), value });
+    saveDisk(key, value);
+    status.source = "live";
+    status.asOf = Date.now();
+    status.lastError = undefined;
+    return value;
+  } catch (e) {
+    status.lastError = (e as Error).message;
+    const stale = loadDisk()[key];
+    if (stale) {
+      if (status.source === "live") {
+        status.source = "cached";
+        status.asOf = stale.at;
+      }
+      return stale.value as T;
+    }
+    throw e;
+  }
+}
+
+function snapshotEvent(ticker: string): GeminiEvent | undefined {
+  return SNAPSHOT_EVENTS.find((e) => e.ticker === ticker);
 }
 
 export async function listEvents(opts: {
@@ -94,7 +153,17 @@ export async function listEvents(opts: {
 }
 
 export async function getEvent(ticker: string): Promise<GeminiEvent> {
-  return get(`/events/${encodeURIComponent(ticker)}`);
+  try {
+    return await get(`/events/${encodeURIComponent(ticker)}`);
+  } catch (e) {
+    const snap = snapshotEvent(ticker);
+    if (snap) {
+      status.source = "snapshot";
+      status.asOf = SNAPSHOT_AT;
+      return snap;
+    }
+    throw e;
+  }
 }
 
 export async function recentlySettled(category?: string, limit = 50): Promise<GeminiEvent[]> {
@@ -123,10 +192,15 @@ export function askFor(c: GeminiContract, side: "yes" | "no"): number | null {
 
 /** Curated discovery for the storefront: Texas teams first, then the busiest game markets. */
 export async function featuredEvents(): Promise<GeminiEvent[]> {
-  const [texas, sports] = await Promise.all([
-    listEvents({ search: "Texas", limit: 40 }),
-    listEvents({ category: "Sports", limit: 120 }),
-  ]);
+  let texas: { data: GeminiEvent[] };
+  let sports: { data: GeminiEvent[] };
+  try {
+    [texas, sports] = await Promise.all([listEvents({ search: "Texas", limit: 40 }), listEvents({ category: "Sports", limit: 120 })]);
+  } catch {
+    status.source = "snapshot";
+    status.asOf = SNAPSHOT_AT;
+    return SNAPSHOT_EVENTS.filter(isClauseable);
+  }
   const seen = new Set<string>();
   const out: GeminiEvent[] = [];
   const push = (e: GeminiEvent) => {

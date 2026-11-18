@@ -2,9 +2,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { boot } from "@/lib/boot";
 import { listProducts } from "@/lib/orders";
-import { featuredEvents, type GeminiEvent } from "@/lib/gemini/public";
+import { featuredEvents, marketDataStatus, type GeminiEvent } from "@/lib/gemini/public";
 import { cents, quote } from "@/lib/pricing";
-import { defaultContract, ask, kickoff, shortWhen } from "@/components/market";
+import { defaultContract, ask, kickoff, shortWhen, openContracts } from "@/components/market";
 import { OddsTicker } from "@/components/OddsTicker";
 
 export const dynamic = "force-dynamic";
@@ -18,126 +18,152 @@ export default async function Home() {
   } catch {
     events = [];
   }
+  const md = marketDataStatus();
   const hero = events[0];
-  const heroContract = hero ? defaultContract(hero) : undefined;
-  const heroLoseAsk = heroContract ? ask(heroContract, "no") : NaN;
+  const team = hero ? defaultContract(hero) : undefined;
+  const other = hero && team ? openContracts(hero).find((c) => c.id !== team.id) : undefined;
+  const loseAsk = team ? ask(team, "no") : NaN;
+  const live = Number.isFinite(loseAsk);
+  const specimen = live && products[0] ? quote(products[0].price_cents, Math.round(products[0].price_cents * 0.3), loseAsk) : null;
 
   return (
     <div>
-      {/* Hero */}
-      <section className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pt-20">
-        <div className="grid items-end gap-10 md:grid-cols-[1.3fr_1fr]">
-          <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-line bg-paper px-3 py-1 text-xs font-medium text-ink-2">
-              <span className="live-dot inline-block h-2 w-2 rounded-full bg-green" />
-              Live odds from Gemini prediction markets
-            </div>
-            <h1 className="font-display text-[56px] leading-[0.95] font-semibold md:text-[88px]">
+      {/* Title page */}
+      <section className="mx-auto max-w-6xl px-4 md:px-6">
+        <div className="grid md:grid-cols-[1.25fr_1fr]">
+          <div className="py-14 md:py-24 md:pr-16">
+            <div className="label">Instrument of conditional sale</div>
+            <h1 className="serif mt-6 text-[64px] leading-[0.92] md:text-[112px]">
               Pay less
               <br />
-              if they <span className="text-orange">lose.</span>
+              if they <em className="text-red">lose.</em>
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-2">
-              Every item in this store can carry a <em className="font-display not-italic font-semibold">clause</em>: a price that changes with the game.
-              Pick the team, pick what you&apos;d pay if it goes wrong, and the difference comes back to you the moment the final whistle blows.
+            <p className="body-serif mt-10 max-w-[30ch] text-ink-2">
+              Any price can carry a condition. Name the game, name the team, name what you&apos;d rather have paid if it goes wrong. The difference comes back the moment the market settles.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href={`/p/${products[0]?.slug ?? ""}`} className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-cream hover:bg-orange">
-                Build your first clause
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <Link href={`/p/${products[0]?.slug ?? ""}`} className="btn">
+                Draft a clause
               </Link>
-              <Link href="/how" className="rounded-full border border-ink px-6 py-3 text-sm font-semibold hover:bg-cream-2">
-                How can a store afford this?
+              <Link href="/how" className="btn btn-ghost">
+                How a store affords this
               </Link>
             </div>
           </div>
 
-          {hero && heroContract && (
-            <div className="perf rounded-2xl border border-line bg-paper p-6 shadow-[0_20px_60px_-30px_rgba(60,30,0,0.45)]">
-              <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-ink-3">
-                <span>This week&apos;s headline</span>
-                <span>{shortWhen(kickoff(hero, heroContract))}</span>
+          <aside className="border-t border-line py-10 md:border-t-0 md:border-l md:py-24 md:pl-12">
+            <div className="label">Recital · {md.source === "live" ? "live market" : "last known prices"}</div>
+            {hero && (
+              <div className="mono mt-1 text-[11px] text-ink-3">
+                Kickoff {shortWhen(kickoff(hero, team))}
+                {md.source !== "live" && ` · prices as of ${new Date(md.asOf).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
               </div>
-              <div className="font-display mt-2 text-3xl font-semibold leading-tight">{hero.title}</div>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                {hero.contracts
-                  .filter((c) => c.marketState !== "closed")
-                  .map((c) => (
-                    <div key={c.id} className={`rounded-xl border p-3 ${c.id === heroContract.id ? "border-orange bg-orange-soft/50" : "border-line"}`}>
-                      <div className="text-xs text-ink-3">{c.label}</div>
-                      <div className="scoreboard mt-1 text-3xl font-semibold">{Math.round(ask(c, "yes") * 100)}%</div>
-                      <div className="text-[11px] text-ink-3">to win</div>
-                    </div>
-                  ))}
-              </div>
-              {Number.isFinite(heroLoseAsk) && products[0] && (
-                <div className="mt-5 rounded-xl bg-ink p-4 text-cream">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-cream/60">Example clause</div>
-                  <div className="mt-1 text-sm leading-snug">
-                    {products[0].name}: pay{" "}
-                    <span className="scoreboard font-semibold">{cents(quote(products[0].price_cents, Math.round(products[0].price_cents * 0.3), heroLoseAsk).winCents)}</span> today, or{" "}
-                    <span className="scoreboard font-semibold text-orange-2">{cents(Math.round(products[0].price_cents * 0.3))}</span> if {heroContract.label} lose.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {events.length > 0 && <OddsTicker events={events.slice(0, 12)} />}
-
-      {/* Products */}
-      <section className="mx-auto max-w-6xl px-4 py-14">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="font-display text-4xl font-semibold">The shop</h2>
-            <p className="mt-1 text-ink-3">Six things worth wearing to a game. Each one takes a clause.</p>
-          </div>
-          <div className="hidden text-right text-xs text-ink-3 md:block">
-            Clause prices shown for <span className="font-medium text-ink">{heroContract?.label ?? "the favourite"}</span> losing
-          </div>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((p) => {
-            const q = Number.isFinite(heroLoseAsk) ? quote(p.price_cents, Math.round(p.price_cents * 0.3), heroLoseAsk) : null;
-            return (
-              <Link key={p.id} href={`/p/${p.slug}`} className="group rounded-2xl border border-line bg-paper p-3 transition hover:-translate-y-0.5 hover:border-ink hover:shadow-lg">
-                <div className="relative overflow-hidden rounded-xl">
-                  <Image src={p.image} alt={p.name} width={400} height={400} className="w-full transition duration-500 group-hover:scale-[1.03]" />
-                  <span className="absolute left-3 top-3 rounded-full bg-ink/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-cream">Takes a clause</span>
-                </div>
-                <div className="flex items-start justify-between gap-3 px-1 pt-4 pb-1">
-                  <div>
-                    <div className="font-display text-xl font-semibold">{p.name}</div>
-                    <div className="text-sm text-ink-3">{p.tagline}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="scoreboard text-xl font-semibold">{cents(p.price_cents)}</div>
-                    {q && (
-                      <div className="text-[11px] text-ink-3">
-                        or <span className="font-semibold text-orange">{cents(q.loseCents)}</span> if they lose
+            )}
+            {hero && team ? (
+              <>
+                <div className="serif mt-4 text-[34px] leading-[1.05]">{hero.title}</div>
+                <div className="mt-6 space-y-3">
+                  {[team, other].filter(Boolean).map((c) => {
+                    const p = ask(c!, "yes");
+                    return (
+                      <div key={c!.id}>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-[13px]">{c!.label} to win</span>
+                          <span className="num text-[13px]">{p.toFixed(2)}</span>
+                        </div>
+                        <div className="mt-1.5 h-px bg-line">
+                          <div className="h-px bg-ink" style={{ width: `${Math.round(p * 100)}%` }} />
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              </Link>
-            );
-          })}
+                {specimen && products[0] && (
+                  <div className="mt-8 border-t border-line pt-5">
+                    <div className="label">Specimen clause</div>
+                    <p className="serif mt-2 text-[19px] leading-snug">
+                      <em>{products[0].name}</em>, listed at <span className="figure redline">{cents(products[0].price_cents)}</span>{" "}
+                      <span className="figure">{cents(specimen.winCents)}</span> today. Should {team.label} lose, <span className="figure">{cents(specimen.rebateCents)}</span> is returned, so the net
+                      price is <span className="figure">{cents(specimen.loseCents)}</span>.
+                    </p>
+                    <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
+                      Gemini prices &ldquo;{team.label} lose&rdquo; at {loseAsk.toFixed(2)}. The store buys {specimen.contractsQty} of those contracts at checkout and earns {cents(specimen.merchantRevenueIfNoRebateCents)} whichever way the game goes.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="mt-4 text-ink-3">No open markets right now.</p>
+            )}
+          </aside>
         </div>
       </section>
 
-      {/* Three steps */}
-      <section className="mx-auto max-w-6xl px-4 pb-10">
-        <div className="grid gap-4 rounded-3xl border border-line bg-paper p-6 md:grid-cols-3 md:p-10">
+      {events.length > 0 && <OddsTicker events={events.slice(0, 14)} />}
+
+      {/* Schedule A: goods */}
+      <section className="mx-auto max-w-6xl px-4 py-16 md:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="label">Schedule A</div>
+            <h2 className="serif mt-2 text-[40px] leading-none">Goods</h2>
+          </div>
+          {team && <div className="label">Clause column assumes {team.label} lose · net price at 30% of list</div>}
+        </div>
+
+        <div className="mt-8 overflow-x-auto">
+          <table className="ledger min-w-[640px]">
+            <thead>
+              <tr>
+                <th className="w-12">No.</th>
+                <th>Item</th>
+                <th className="r">List</th>
+                <th className="r">Pay today</th>
+                <th className="r">Returned if they lose</th>
+                <th className="r">Net</th>
+                <th className="w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p, i) => {
+                const q = live ? quote(p.price_cents, Math.round(p.price_cents * 0.3), loseAsk) : null;
+                return (
+                  <tr key={p.id} className="group relative hover:bg-paper-2/70">
+                    <td className="mono text-ink-3">{String(i + 1).padStart(2, "0")}</td>
+                    <td>
+                      <Link href={`/p/${p.slug}`} className="flex items-center gap-4 after:absolute after:inset-0">
+                        <Image src={p.image} alt="" width={44} height={44} className="art h-11 w-11 shrink-0" />
+                        <span>
+                          <span className="serif block text-[20px] leading-none">{p.name}</span>
+                          <span className="mt-1 block text-xs text-ink-3">{p.tagline}</span>
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="num r">{cents(p.price_cents)}</td>
+                    <td className="num r">{q ? cents(q.winCents) : "–"}</td>
+                    <td className="num r text-red">{q ? cents(q.rebateCents) : "–"}</td>
+                    <td className="num r">{q ? cents(q.loseCents) : "–"}</td>
+                    <td className="mono r text-ink-3 transition group-hover:text-red">→</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Mechanics */}
+      <section className="border-t border-line">
+        <div className="mx-auto grid max-w-6xl md:grid-cols-3">
           {[
-            ["01", "You name your price", "Choose the game, the team, and what you'd be happy paying if it goes badly. The price you pay today adjusts to the odds."],
-            ["02", "The store hedges instantly", "The moment you check out, the store buys the matching side on Gemini's prediction market. Whatever happens, it makes the same money."],
-            ["03", "Money moves itself", "Your payment waits in escrow on Solana. When the market settles, your rebate lands without anyone lifting a finger. No forms, no refunds desk."],
-          ].map(([n, t, d]) => (
-            <div key={n}>
-              <div className="scoreboard text-sm text-orange">{n}</div>
-              <div className="font-display mt-1 text-2xl font-semibold">{t}</div>
-              <p className="mt-2 text-sm leading-relaxed text-ink-2">{d}</p>
+            ["§ 1", "You set the terms", "Choose the game, the team, and what you would be content paying if it goes badly. Today's price is solved from the live odds, not set by us."],
+            ["§ 2", "The store hedges", "On execution the store buys the matching contract on Gemini's prediction market. Its revenue is identical either way, so it can say yes to anyone."],
+            ["§ 3", "Money moves itself", "Your payment waits in a USDC escrow on Solana. The market's resolution releases it: your share back to you, the store's to the store. No refunds desk."],
+          ].map(([n, t, d], i) => (
+            <div key={n} className={`px-4 py-10 md:px-8 ${i > 0 ? "border-t border-line md:border-t-0 md:border-l" : ""}`}>
+              <div className="sect">{n}</div>
+              <div className="serif mt-3 text-[28px] leading-tight">{t}</div>
+              <p className="mt-3 max-w-[38ch] text-[13.5px] leading-relaxed text-ink-2">{d}</p>
             </div>
           ))}
         </div>
