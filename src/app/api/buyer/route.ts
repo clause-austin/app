@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PublicKey } from "@solana/web3.js";
 import { boot } from "@/lib/boot";
-import { currentBuyer, createBuyer, setBuyerCookie, publicBuyer, clearBuyerCookie } from "@/lib/session";
+import { currentBuyer, signIn, setBuyerCookie, publicBuyer, clearBuyerCookie, AuthError } from "@/lib/session";
 import { usdcBalanceCents, keysReady } from "@/lib/solana";
 
 export const dynamic = "force-dynamic";
@@ -21,11 +21,22 @@ export async function GET() {
 
 export async function POST(req: Request) {
   boot();
-  const parsed = z.object({ name: z.string().min(1).max(40) }).safeParse(await req.json());
-  if (!parsed.success) return Response.json({ error: "name required" }, { status: 400 });
-  const b = createBuyer(parsed.data.name);
-  await setBuyerCookie(b.id);
-  return Response.json({ buyer: publicBuyer(b), balanceCents: 0 });
+  const parsed = z.object({ name: z.string().min(1).max(40), passcode: z.string().min(4).max(72) }).safeParse(await req.json());
+  if (!parsed.success) return Response.json({ error: "Name and a passcode of at least 4 characters." }, { status: 400 });
+  try {
+    const b = signIn(parsed.data.name, parsed.data.passcode);
+    await setBuyerCookie(b.id);
+    let balanceCents = 0;
+    try {
+      if (keysReady()) balanceCents = await usdcBalanceCents(new PublicKey(b.pubkey));
+    } catch {
+      /* ignore */
+    }
+    return Response.json({ buyer: publicBuyer(b), balanceCents });
+  } catch (e) {
+    if (e instanceof AuthError) return Response.json({ error: e.message }, { status: 401 });
+    throw e;
+  }
 }
 
 export async function DELETE() {

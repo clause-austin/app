@@ -6,6 +6,8 @@ import { env } from "./env";
 /* Single process-wide SQLite handle. Next.js hot reload re-evaluates modules,
    so the instance is parked on globalThis to avoid leaking file handles. */
 const g = globalThis as unknown as { __clauseDb?: Database.Database };
+// Hot reload keeps the handle but re-evaluates this module: re-apply (idempotent) migrations.
+if (g.__clauseDb) migrate(g.__clauseDb);
 
 export function db(): Database.Database {
   if (g.__clauseDb) return g.__clauseDb;
@@ -101,6 +103,13 @@ function migrate(d: Database.Database) {
     created_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS uploads (
+    id TEXT PRIMARY KEY,
+    mime TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS settlements (
     event_ticker TEXT PRIMARY KEY,
     contract_symbol TEXT NOT NULL,
@@ -109,6 +118,16 @@ function migrate(d: Database.Database) {
     created_at INTEGER NOT NULL
   );
   `);
+  // Additive migrations (SQLite has no IF NOT EXISTS for columns).
+  const addCol = (table: string, col: string, ddl: string) => {
+    const cols = (d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes(col)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
+  };
+  addCol("buyers", "pass_hash", "TEXT");
+  addCol("products", "seller_id", "TEXT REFERENCES buyers(id)");
+  addCol("products", "created_at", "INTEGER");
+  addCol("orders", "seller_id", "TEXT REFERENCES buyers(id)");
+  addCol("orders", "seller_tx", "TEXT");
 }
 
 export type ProductRow = {
@@ -121,6 +140,8 @@ export type ProductRow = {
   image: string;
   accent: string;
   sort: number;
+  seller_id: string | null;
+  created_at: number | null;
 };
 
 export type BuyerRow = {
@@ -129,6 +150,7 @@ export type BuyerRow = {
   pubkey: string;
   secret: string;
   created_at: number;
+  pass_hash: string | null;
 };
 
 export type OrderRow = {
@@ -155,6 +177,8 @@ export type OrderRow = {
   outcome: "rebate" | "no_rebate" | null;
   created_at: number;
   settled_at: number | null;
+  seller_id: string | null;
+  seller_tx: string | null;
 };
 
 export type HedgeRow = {

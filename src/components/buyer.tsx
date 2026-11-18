@@ -9,7 +9,7 @@ type Ctx = {
   balanceCents: number;
   loading: boolean;
   refresh: () => Promise<void>;
-  signIn: (name: string) => Promise<void>;
+  signIn: (name: string, passcode: string) => Promise<void>;
   signOut: () => Promise<void>;
   topUp: (cents: number) => Promise<void>;
 };
@@ -34,9 +34,10 @@ export function BuyerProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const signIn = useCallback(
-    async (name: string) => {
-      const r = await fetch("/api/buyer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-      if (!r.ok) throw new Error("Could not sign in");
+    async (name: string, passcode: string) => {
+      const r = await fetch("/api/buyer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, passcode }) });
+      const j = (await r.json()) as { error?: string };
+      if (!r.ok) throw new Error(j.error ?? "Could not sign in");
       await refresh();
     },
     [refresh],

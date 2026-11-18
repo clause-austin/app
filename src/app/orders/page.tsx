@@ -54,7 +54,7 @@ export default function OrdersPage() {
             return (
               <Link key={o.id} href={`/orders/${o.id}`} className="cell inv grid grid-cols-[72px_1fr_auto] items-stretch md:grid-cols-[96px_1.4fr_1.4fr_1fr_1fr_1fr]">
                 <div className="relative border-r border-fg bg-faint">
-                  <Image src={o.product.image} alt="" fill sizes="96px" className="object-cover" />
+                  <Image src={o.product.image} alt="" fill unoptimized={!o.product.image.startsWith("/products/")} sizes="96px" className="object-cover" />
                 </div>
                 <div className="px-4 py-4">
                   <div className="text-[15px] font-extrabold uppercase leading-none">{o.product.name}</div>

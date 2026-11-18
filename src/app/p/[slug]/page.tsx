@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { boot } from "@/lib/boot";
-import { getProduct } from "@/lib/orders";
+import { getProduct, getBuyer } from "@/lib/orders";
 import { featuredEvents, type GeminiEvent } from "@/lib/gemini/public";
 import { cents } from "@/lib/pricing";
 import { ClauseBuilder } from "@/components/ClauseBuilder";
@@ -14,6 +14,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const product = getProduct(slug);
   if (!product) notFound();
+  const seller = product.seller_id ? getBuyer(product.seller_id) : undefined;
   let events: GeminiEvent[] = [];
   try {
     events = await featuredEvents();
@@ -28,10 +29,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <Link href="/" className="inv px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em]">
             ← Goods
           </Link>
-          <span className="tag px-4">{product.slug}</span>
+          <span className="tag px-4">{seller ? `Listed by ${seller.name}` : "House item"}</span>
         </div>
         <div className="relative aspect-[4/5] bg-faint lg:aspect-auto lg:h-[calc(100vh-49px-170px)]">
-          <Image src={product.image} alt={product.name} fill priority sizes="(min-width:1024px) 45vw, 100vw" className="object-cover" />
+          <Image src={product.image} alt={product.name} fill priority unoptimized={!product.image.startsWith("/products/")} sizes="(min-width:1024px) 45vw, 100vw" className="object-cover" />
         </div>
         <div className="grid-lines grid-cols-[1fr_auto] border-t border-fg">
           <div className="cell px-4 py-4">

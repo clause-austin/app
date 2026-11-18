@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { boot } from "@/lib/boot";
-import { env } from "@/lib/env";
+import { isAdmin } from "@/lib/session";
 import { settleEvent, openEventTickers } from "@/lib/orders";
 import { tick } from "@/lib/resolver";
 import { publish } from "@/lib/feed";
@@ -23,7 +23,7 @@ const Body = z.union([
 
 export async function POST(req: Request) {
   boot();
-  if (req.headers.get("x-admin-token") !== env.adminToken) return Response.json({ error: "forbidden" }, { status: 403 });
+  if (!(await isAdmin(req))) return Response.json({ error: "forbidden" }, { status: 403 });
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return Response.json({ error: "bad request" }, { status: 400 });
   try {
@@ -49,6 +49,6 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   boot();
-  if (req.headers.get("x-admin-token") !== env.adminToken) return Response.json({ error: "forbidden" }, { status: 403 });
+  if (!(await isAdmin(req))) return Response.json({ error: "forbidden" }, { status: 403 });
   return Response.json({ open: openEventTickers() });
 }

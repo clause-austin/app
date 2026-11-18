@@ -24,6 +24,13 @@ export function getProduct(slug: string): ProductRow | undefined {
 export function listProducts(): ProductRow[] {
   return db().prepare(`SELECT * FROM products ORDER BY sort ASC`).all() as ProductRow[];
 }
+export function sellerNames(ids: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const rows = db().prepare(`SELECT id, name FROM buyers WHERE id IN (${ids.map(() => "?").join(",")})`).all(...ids) as { id: string; name: string }[];
+  for (const r of rows) out.set(r.id, r.name);
+  return out;
+}
 export function getBuyer(id: string): BuyerRow | undefined {
   return db().prepare(`SELECT * FROM buyers WHERE id = ?`).get(id) as BuyerRow | undefined;
 }
@@ -104,6 +111,8 @@ export async function checkout(opts: {
       outcome: null,
       created_at: now,
       settled_at: null,
+      seller_id: opts.product.seller_id ?? null,
+      seller_tx: null,
     };
   } else {
     row = {
@@ -130,6 +139,8 @@ export async function checkout(opts: {
       outcome: null,
       created_at: now,
       settled_at: null,
+      seller_id: opts.product.seller_id ?? null,
+      seller_tx: null,
     };
   }
 
@@ -154,10 +165,10 @@ export async function checkout(opts: {
     .prepare(
       `INSERT INTO orders (id, buyer_id, product_id, base_cents, event_ticker, event_title, contract_symbol, contract_label,
         rebate_side, hedge_price, win_cents, lose_cents, fee_cents, contracts_qty, expiry_at, paid_cents, pay_tx, settle_tx,
-        rebate_tx, status, outcome, created_at, settled_at)
+        rebate_tx, status, outcome, created_at, settled_at, seller_id, seller_tx)
        VALUES (@id, @buyer_id, @product_id, @base_cents, @event_ticker, @event_title, @contract_symbol, @contract_label,
         @rebate_side, @hedge_price, @win_cents, @lose_cents, @fee_cents, @contracts_qty, @expiry_at, @paid_cents, @pay_tx, @settle_tx,
-        @rebate_tx, @status, @outcome, @created_at, @settled_at)`,
+        @rebate_tx, @status, @outcome, @created_at, @settled_at, @seller_id, @seller_tx)`,
     )
     .run(row);
 
@@ -187,21 +198,16 @@ export async function checkout(opts: {
 async function settleNoClause(row: OrderRow) {
   const treasury = loadKeypair("treasury");
   const escrow = loadKeypair("escrow");
-  const merchant = loadKeypair("merchant");
-  const tx = await transferUsdc({
-    from: escrow,
-    to: merchant.publicKey,
-    cents: row.paid_cents,
-    feePayer: treasury,
-    memo: `clause:${row.id}:settle`,
-  });
+  const seller = row.seller_id ? getBuyer(row.seller_id) : undefined;
+  const to = seller ? new PublicKey(seller.pubkey) : loadKeypair("merchant").publicKey;
+  const tx = await transferUsdc({ from: escrow, to, cents: row.paid_cents, feePayer: treasury, memo: `clause:${row.id}:settle` });
   db()
-    .prepare(`UPDATE orders SET status='settled', outcome='no_rebate', settle_tx=?, settled_at=? WHERE id=?`)
-    .run(tx, Date.now(), row.id);
+    .prepare(`UPDATE orders SET status='settled', outcome='no_rebate', settle_tx=?, seller_tx=?, settled_at=? WHERE id=?`)
+    .run(seller ? null : tx, seller ? tx : null, Date.now(), row.id);
   publish({
     kind: "settlement",
     source: "solana",
-    title: `${cents(row.paid_cents)} released to merchant`,
+    title: `${cents(row.paid_cents)} released to ${seller ? seller.name : "the store"}`,
     detail: "No clause on this order",
     order_id: row.id,
     href: explorerTx(tx),
@@ -305,34 +311,49 @@ export async function settleEvent(opts: {
     const buyer = getBuyer(o.buyer_id)!;
     const buyerPk = new PublicKey(buyer.pubkey);
 
-    const merchantCents = triggered ? o.lose_cents! : o.paid_cents;
     const rebateCents = triggered ? o.paid_cents - o.lose_cents! : 0;
+    const seller = o.seller_id ? getBuyer(o.seller_id) : undefined;
+    const outcomeNote = `${o.contract_label} ${side === "yes" ? "won" : "lost"} · ${triggered ? "clause triggered" : "clause did not trigger"}`;
 
-    const settleTx = await transferUsdc({
-      from: escrow,
-      to: merchant.publicKey,
-      cents: merchantCents,
-      feePayer: treasury,
-      memo: `clause:${o.id}:settle`,
-    });
-    publish({
-      kind: "settlement",
-      source: "solana",
-      title: `${cents(merchantCents)} released to merchant`,
-      detail: `${o.contract_label} ${side === "yes" ? "won" : "lost"} · ${triggered ? "clause triggered" : "clause did not trigger"}`,
-      order_id: o.id,
-      href: explorerTx(settleTx),
-    });
+    let settleTx: string | null = null;
+    let sellerTx: string | null = null;
+    let merchantCents = 0; // what the house (platform) books from escrow
+
+    if (!seller) {
+      // House listing: the store keeps whatever the escrow holds after any rebate.
+      merchantCents = triggered ? o.lose_cents! : o.paid_cents;
+      settleTx = await transferUsdc({ from: escrow, to: merchant.publicKey, cents: merchantCents, feePayer: treasury, memo: `clause:${o.id}:settle` });
+      publish({ kind: "settlement", source: "solana", title: `${cents(merchantCents)} released to the store`, detail: outcomeNote, order_id: o.id, href: explorerTx(settleTx) });
+    } else {
+      /* Seller listing: the seller is made whole at list price either way.
+         no trigger : escrow -> seller  B            escrow -> house  W - B   (fee + hedge recovery)
+         trigger    : escrow -> seller  L            treasury -> seller B - L (the hedge payout, which Gemini pays the house)
+         The house is the hedger of record, so it carries the hedge cost and collects the payout. */
+      const sellerPk = new PublicKey(seller.pubkey);
+      if (!triggered) {
+        sellerTx = await transferUsdc({ from: escrow, to: sellerPk, cents: o.base_cents, feePayer: treasury, memo: `clause:${o.id}:seller` });
+        publish({ kind: "settlement", source: "solana", title: `${cents(o.base_cents)} paid to ${seller.name}`, detail: `List price in full · ${outcomeNote}`, order_id: o.id, href: explorerTx(sellerTx) });
+        merchantCents = o.paid_cents - o.base_cents;
+        if (merchantCents > 0) {
+          settleTx = await transferUsdc({ from: escrow, to: merchant.publicKey, cents: merchantCents, feePayer: treasury, memo: `clause:${o.id}:settle` });
+          publish({ kind: "settlement", source: "solana", title: `${cents(merchantCents)} to Clause`, detail: "Clause fee + hedge cost recovered", order_id: o.id, href: explorerTx(settleTx) });
+        }
+      } else {
+        const fromEscrow = o.lose_cents!;
+        const fromHedge = o.base_cents - o.lose_cents!;
+        sellerTx = await transferUsdc({ from: escrow, to: sellerPk, cents: fromEscrow, feePayer: treasury, memo: `clause:${o.id}:seller` });
+        publish({ kind: "settlement", source: "solana", title: `${cents(fromEscrow)} paid to ${seller.name} from escrow`, detail: outcomeNote, order_id: o.id, href: explorerTx(sellerTx) });
+        if (fromHedge > 0) {
+          settleTx = await transferUsdc({ from: treasury, to: sellerPk, cents: fromHedge, feePayer: treasury, memo: `clause:${o.id}:hedge-payout` });
+          publish({ kind: "settlement", source: "solana", title: `${cents(fromHedge)} paid to ${seller.name} from the hedge`, detail: `Gemini contracts paid out; ${seller.name} nets list price ${cents(o.base_cents)}`, order_id: o.id, href: explorerTx(settleTx) });
+        }
+        merchantCents = 0;
+      }
+    }
 
     let rebateTx: string | null = null;
     if (triggered && rebateCents > 0) {
-      rebateTx = await transferUsdc({
-        from: escrow,
-        to: buyerPk,
-        cents: rebateCents,
-        feePayer: treasury,
-        memo: `clause:${o.id}:rebate`,
-      });
+      rebateTx = await transferUsdc({ from: escrow, to: buyerPk, cents: rebateCents, feePayer: treasury, memo: `clause:${o.id}:rebate` });
       publish({
         kind: "rebate",
         source: "solana",
@@ -352,7 +373,7 @@ export async function settleEvent(opts: {
         kind: "hedge_settled",
         source: "gemini",
         title: triggered ? `Hedge paid out ${cents(payout)}` : `Hedge expired worthless (cost ${cents(h.cost_cents)})`,
-        detail: `Merchant nets ${cents(merchantCents + payout - h.cost_cents)} either way`,
+        detail: seller ? `Clause nets ${cents(merchantCents + payout - h.cost_cents)} on this clause` : `Store nets ${cents(merchantCents + payout - h.cost_cents)} either way`,
         order_id: o.id,
         href: null,
       });
@@ -360,9 +381,9 @@ export async function settleEvent(opts: {
 
     db()
       .prepare(
-        `UPDATE orders SET status=?, outcome=?, settle_tx=?, rebate_tx=?, settled_at=? WHERE id=?`,
+        `UPDATE orders SET status=?, outcome=?, settle_tx=?, rebate_tx=?, seller_tx=?, settled_at=? WHERE id=?`,
       )
-      .run(triggered ? "rebated" : "settled", triggered ? "rebate" : "no_rebate", settleTx, rebateTx, Date.now(), o.id);
+      .run(triggered ? "rebated" : "settled", triggered ? "rebate" : "no_rebate", settleTx, rebateTx, sellerTx, Date.now(), o.id);
     out.push(getOrder(o.id)!);
   }
   return out;

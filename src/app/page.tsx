@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { boot } from "@/lib/boot";
-import { listProducts } from "@/lib/orders";
+import { listProducts, sellerNames } from "@/lib/orders";
 import { featuredEvents, marketDataStatus, type GeminiEvent } from "@/lib/gemini/public";
 import { cents, quote } from "@/lib/pricing";
 import { defaultContract, ask, kickoff, shortWhen, openContracts } from "@/components/market";
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   boot();
   const products = listProducts();
+  const sellers = sellerNames(products.map((p) => p.seller_id).filter(Boolean) as string[]);
   let events: GeminiEvent[] = [];
   try {
     events = await featuredEvents();
@@ -111,7 +112,7 @@ export default async function Home() {
           return (
             <Link key={p.id} href={`/p/${p.slug}`} className="cell group flex flex-col">
               <div className="relative aspect-[4/5] overflow-hidden border-b border-fg bg-faint">
-                <Image src={p.image} alt={p.name} fill sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" />
+                <Image src={p.image} alt={p.name} fill unoptimized={!p.image.startsWith("/products/")} sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" />
                 <span className="absolute left-0 top-0 bg-fg px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-bg">{String(i + 1).padStart(2, "0")}</span>
               </div>
               <div className="inv flex flex-1 flex-col px-4 py-4">
@@ -119,7 +120,7 @@ export default async function Home() {
                   <span className="text-[16px] font-extrabold uppercase leading-none tracking-[-0.02em]">{p.name}</span>
                   <span className="num-md">{cents(p.price_cents)}</span>
                 </div>
-                <div className="tag mt-1">{p.tagline}</div>
+                <div className="tag mt-1">{p.seller_id ? `Listed by ${sellers.get(p.seller_id) ?? "a seller"} · ${p.tagline}` : p.tagline}</div>
                 {q && (
                   <div className="mt-5 grid grid-cols-3 gap-3">
                     <div>
@@ -140,6 +141,20 @@ export default async function Home() {
             </Link>
           );
         })}
+        {Array.from({ length: (3 - (products.length % 3)) % 3 }, (_, i) => (
+          <div key={`pad3-${i}`} className="cell hidden lg:block" />
+        ))}
+        {Array.from({ length: products.length % 2 }, (_, i) => (
+          <div key={`pad2-${i}`} className="cell hidden sm:block lg:hidden" />
+        ))}
+        <Link href="/sell" className="cell inv col-span-full grid grid-cols-[auto_1fr_auto] items-center gap-6 px-4 py-6">
+          <div className="tag">{String(products.length + 1).padStart(2, "0")}</div>
+          <div>
+            <div className="h-md">Sell something</div>
+            <p className="mt-1 max-w-[60ch] text-[12px] text-mute">List anything. Buyers attach a clause, Clause hedges it, you get list price either way.</p>
+          </div>
+          <div className="text-[24px]">→</div>
+        </Link>
       </div>
 
       {/* Mechanics */}

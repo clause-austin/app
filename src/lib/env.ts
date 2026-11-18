@@ -25,9 +25,19 @@ export const env = {
 };
 
 /** Which integrations are live vs. running in fallback mode. Surfaced in the merchant dashboard. */
+/** Host only: RPC URLs carry provider tokens in the path. */
+function redactUrl(u: string): string {
+  try {
+    const x = new URL(u);
+    return `${x.protocol}//${x.host}`;
+  } catch {
+    return "rpc";
+  }
+}
+
 export function integrationStatus() {
   return {
-    solana: { configured: true, rpc: env.solanaRpcUrl, mint: env.usdcMint, network: "devnet" },
+    solana: { configured: true, rpc: redactUrl(env.solanaRpcUrl), mint: env.usdcMint, network: "devnet" },
     gemini: {
       marketData: marketStatus.source, // public endpoints need no key; cached/snapshot when Gemini is down
       hedging: env.geminiApiKey && env.geminiApiSecret ? `live:${env.geminiEnv}` : "paper",

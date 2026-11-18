@@ -63,6 +63,7 @@ export function ClauseBuilder({ product, events }: Props) {
   }, [q?.winCents, q?.loseCents, contract?.id, when, event?.ticker]);
 
   const [name, setName] = useState("");
+  const [pass, setPass] = useState("");
   const [busy, setBusy] = useState<"idle" | "funding" | "paying">("idle");
   const [err, setErr] = useState<string | null>(null);
   const due = q ? q.winCents : product.priceCents;
@@ -72,11 +73,11 @@ export function ClauseBuilder({ product, events }: Props) {
     setErr(null);
     try {
       if (!buyer) {
-        if (!name.trim()) {
-          setErr("Your name goes in the box above.");
+        if (!name.trim() || pass.length < 4) {
+          setErr("Name and a passcode (4+ characters) go in the boxes above.");
           return;
         }
-        await signIn(name);
+        await signIn(name, pass);
       }
       if (short > 0) {
         setBusy("funding");
@@ -226,7 +227,12 @@ export function ClauseBuilder({ product, events }: Props) {
       )}
 
       {/* Execute */}
-      {!buyer && <input name="buyer" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="field border-b border-fg" />}
+      {!buyer && (
+        <div className="grid-lines grid-cols-2 border-b border-fg">
+          <input name="buyer" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="username" className="field cell" />
+          <input name="passcode" value={pass} onChange={(e) => setPass(e.target.value)} type="password" placeholder="Passcode" autoComplete="current-password" className="field cell" />
+        </div>
+      )}
       <div className="grid-lines grid-cols-[1fr_auto]">
         <div className="cell px-4 py-4">
           <div className="tag">Due now</div>

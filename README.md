@@ -29,6 +29,8 @@ Fans have always wanted a price that depends on the game. Stores have never offe
 
 The fan never sees a wallet, a chain, or a market. They see a toggle, a slider, and a receipt.
 
+**Anyone can sell.** Clause is a marketplace, not a single store. `/sell` lets any account list an item with a photo and a list price; it appears in Goods beside the house items and takes clauses on any open Gemini market. The seller is paid the list price in USDC whichever way the game goes: Clause is the hedger of record, carries the hedge, collects the payout, and keeps the 1.5% clause fee. That is the business model.
+
 ## The math
 
 For sticker price `B`, the fan's chosen bad-day price `L`, and `q` the market ask for the clause triggering:
@@ -79,8 +81,12 @@ The store nets `B` either way, plus a 1.5% clause fee that covers the spread. Se
 | Settlement, no trigger | escrow | merchant | `W` |
 | Settlement, trigger | escrow | merchant | `L` |
 | Rebate, trigger | escrow | buyer wallet | `W − L` |
+| Seller listing, no trigger | escrow | seller wallet, then house | `B` to seller, `W − B` to house |
+| Seller listing, trigger | escrow + hedge payout | seller wallet | `L` from escrow, `B − L` from the hedge |
 
-The treasury is fee payer for every transaction, so buyers never hold SOL. Buyer wallets are server-custodied keypairs (the store holds them like a gift-card balance), which is what makes the chain invisible at checkout. A production version would swap in Circle Programmable Wallets or Privy embedded wallets; the transfer logic in `src/lib/solana.ts` is unchanged.
+The treasury is fee payer for every transaction, so buyers never hold SOL. Every account (buyer or seller) gets a server-custodied keypair the moment it is created, which is what makes the chain invisible at checkout.
+
+**Auth.** Accounts are a name plus a passcode (scrypt-hashed). A new name creates the account; a known name must present its passcode. Sessions are HMAC-signed httpOnly cookies (`SESSION_SECRET`, or a secret generated once into the data dir). The back-office resolution desk is locked behind `ADMIN_TOKEN`, entered on the Ledger page and held as a separate signed cookie; the API also accepts it as an `x-admin-token` header for scripts. A production version would swap in Circle Programmable Wallets or Privy embedded wallets; the transfer logic in `src/lib/solana.ts` is unchanged.
 
 **Hedging on Gemini.** Quotes always read live public prices from `api.gemini.com/v1/prediction-markets` (no key needed). With `GEMINI_API_KEY`/`SECRET` set, each clause places an immediate-or-cancel limit order on the rebate side via `POST /v1/prediction-markets/order`; without keys, hedges are recorded as paper fills at the live ask and labelled as such in the back office. Settlement is read from `contract.resolutionSide` on the event.
 
@@ -113,7 +119,8 @@ For fully offline development, `npm run setup:solana -- --test-mint` against a l
 | `QUICKNODE_WEBHOOK_TOKEN` | Verifies QuickNode Streams webhooks | RPC poller on the escrow wallet |
 | `ELEVENLABS_API_KEY` | Spoken settlement announcements | Browser speech synthesis |
 | `XAI_API_KEY` | Grok writes the checkout explanation | Templated copy |
-| `ADMIN_TOKEN` | Protects demo settlement controls | `clause-demo` |
+| `ADMIN_TOKEN` | Unlocks the demo settlement desk | `clause-demo` |
+| `SESSION_SECRET` | Signs session cookies | generated once into `data/` |
 
 ### Demo settlement
 
@@ -133,11 +140,14 @@ Gemini settles each market when the game ends and the resolver picks it up withi
 | `src/components/ClauseBuilder.tsx` | The product-page clause UI |
 | `src/components/Receipt.tsx` | Live receipt with timeline and voice |
 | `src/components/Merchant.tsx` | Back office: clause book, P&L, settlement, live wire |
+| `src/components/Sell.tsx`, `src/app/api/listings/` | Seller listings, uploads, per-seller sales |
+| `src/lib/auth.ts`, `src/lib/session.ts` | Passcodes, signed cookies, admin session |
 | `scripts/setup-solana.ts` | Key generation, airdrop, optional test mint |
 
 ## What we'd build next
 
-- Embedded wallets (Circle Programmable Wallets / Privy) so the store never custodies keys.
+- Embedded wallets (Circle Programmable Wallets / Privy) so Clause never custodies keys.
+- Seller payouts to an external wallet or bank, and a Shopify/Stripe app so existing stores can switch clauses on.
 - An on-chain escrow program with per-order PDAs, so settlement is verifiable without trusting the store.
 - Clauses on anything with a market: concert tickets refunded if the headliner cancels, flights hedged against weather markets, rent that drops if the Fed hikes.
 - A Shopify app: one toggle on the product page, Clause handles pricing, hedging and settlement behind it.

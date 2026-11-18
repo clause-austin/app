@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BuyerProvider, useBuyer } from "./buyer";
+import { SignInInline } from "./SignInInline";
 import { cents } from "@/lib/pricing";
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 const NAV = [
   { href: "/", label: "Goods" },
   { href: "/how", label: "How" },
+  { href: "/sell", label: "Sell" },
   { href: "/orders", label: "Orders" },
   { href: "/merchant", label: "Ledger" },
 ];
@@ -52,9 +54,8 @@ function Header() {
 }
 
 export function BuyerChip() {
-  const { buyer, balanceCents, loading, signIn, signOut, topUp } = useBuyer();
+  const { buyer, balanceCents, loading, signOut, topUp } = useBuyer();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -73,31 +74,10 @@ export function BuyerChip() {
         )}
       </button>
       {open && !buyer && (
-        <form
-          className="rise frame absolute right-[-1px] top-[calc(100%+1px)] w-80 bg-bg"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            setErr(null);
-            try {
-              await signIn(name);
-              setOpen(false);
-            } catch (er) {
-              setErr((er as Error).message);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <div className="tag border-b border-fg px-4 py-2">Who is buying</div>
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="field border-b border-fg" />
-          <p className="px-4 py-3 text-[11px] leading-relaxed text-mute">No password, no wallet, no seed phrase. The chain is our problem.</p>
-          {err && <p className="px-4 pb-2 text-[11px] text-acc">{err}</p>}
-          <button disabled={busy || !name.trim()} className="btn">
-            <span>{busy ? "One sec" : "Continue"}</span>
-            <span>→</span>
-          </button>
-        </form>
+        <div className="rise frame absolute right-[-1px] top-[calc(100%+1px)] w-80 bg-bg">
+          <div className="tag border-b border-fg px-4 py-2">Who are you</div>
+          <SignInInline onDone={() => setOpen(false)} />
+        </div>
       )}
       {open && buyer && (
         <div className="rise frame absolute right-[-1px] top-[calc(100%+1px)] w-80 bg-bg">

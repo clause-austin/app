@@ -150,7 +150,7 @@ select.seg {
   white-space: nowrap;
   overflow: hidden;
 }
-input.field {
+input.field, textarea.field {
   appearance: none;
   background: var(--bg);
   border: 0;
@@ -163,8 +163,8 @@ input.field {
   width: 100%;
   outline: none;
 }
-input.field::placeholder { color: var(--mute); font-weight: 400; }
-input.field:focus { background: var(--faint); }
+input.field::placeholder, textarea.field::placeholder { color: var(--mute); font-weight: 400; }
+input.field:focus, textarea.field:focus { background: var(--faint); }
 
 /* Block bar: 24 segments, range input invisible on top for a11y + keyboard */
 .blocks { position: relative; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 28px; }

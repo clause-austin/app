@@ -24,18 +24,22 @@ export async function GET() {
   for (const o of orders) {
     const h = byOrder.get(o.id);
     if (o.status === "settled" || o.status === "rebated") {
-      const merchantIn = o.outcome === "rebate" ? o.lose_cents! : o.paid_cents;
+      // House listings: the store keeps what escrow holds. Seller listings: the seller takes list price,
+      // the house books only the fee + hedge recovery (and the hedge payout covers the seller's top-up).
+      const merchantIn = o.seller_id
+        ? o.outcome === "rebate" ? -(o.base_cents - o.lose_cents!) : o.paid_cents - o.base_cents
+        : o.outcome === "rebate" ? o.lose_cents! : o.paid_cents;
       const payout = h?.payout_cents ?? 0;
       const cost = h?.cost_cents ?? 0;
       realised += merchantIn + payout - cost;
-      baseline += o.base_cents;
+      baseline += o.seller_id ? o.fee_cents : o.base_cents;
       hedgeCost += cost;
       hedgePayout += payout;
       if (o.outcome === "rebate") rebatedToFans += o.paid_cents - o.lose_cents!;
     } else if (o.event_ticker) {
       const cost = h?.cost_cents ?? 0;
       // either-way revenue = L + N - cost = W - cost (identical by construction)
-      openLocked += o.paid_cents - cost;
+      openLocked += o.seller_id ? o.fee_cents : o.paid_cents - cost;
       hedgeCost += cost;
     }
   }
@@ -64,6 +68,7 @@ export async function GET() {
     orders: orders.map((o) => ({
       ...o,
       buyer: getBuyer(o.buyer_id)?.name ?? "?",
+      seller: o.seller_id ? (getBuyer(o.seller_id)?.name ?? "?") : null,
       product: products.get(o.product_id)?.name ?? "?",
       hedge: byOrder.get(o.id) ?? null,
     })),

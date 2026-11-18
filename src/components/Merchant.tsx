@@ -16,10 +16,8 @@ type Payload = {
   };
   wallets: Record<string, { address: string; usdcCents: number; sol?: number; href: string }> | null;
   pnl: { realised: number; baseline: number; openLocked: number; hedgeCost: number; hedgePayout: number; rebatedToFans: number; orders: number; clauses: number };
-  orders: (OrderRow & { buyer: string; product: string; hedge: HedgeRow | null })[];
+  orders: (OrderRow & { buyer: string; product: string; seller: string | null; hedge: HedgeRow | null })[];
 };
-
-const ADMIN = "clause-demo";
 
 export function Merchant() {
   const [data, setData] = useState<Payload | null>(null);
@@ -36,6 +34,24 @@ export function Merchant() {
 
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [admin, setAdmin] = useState<boolean | null>(null);
+  const [token, setToken] = useState("");
+  useEffect(() => {
+    fetch("/api/admin/session", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { admin: boolean }) => setAdmin(j.admin))
+      .catch(() => setAdmin(false));
+  }, []);
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    const r = await fetch("/api/admin/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) });
+    setAdmin(r.ok);
+    setMsg(r.ok ? null : "Wrong token.");
+  }
+  async function lock() {
+    await fetch("/api/admin/session", { method: "DELETE" });
+    setAdmin(false);
+  }
 
   async function settle(eventTicker: string, contractSymbol: string, side: "yes" | "no") {
     setBusy(eventTicker + side);
@@ -43,11 +59,11 @@ export function Merchant() {
     try {
       const r = await fetch("/api/admin/resolve", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-token": ADMIN },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "resolve", eventTicker, contractSymbol, resolutionSide: side }),
       });
       const j = (await r.json()) as { settled?: number; error?: string };
-      setMsg(j.error ?? `Settled ${j.settled} order${j.settled === 1 ? "" : "s"}.`);
+      setMsg(r.status === 403 ? "Unlock the desk first." : (j.error ?? `Settled ${j.settled} order${j.settled === 1 ? "" : "s"}.`));
       await load();
     } finally {
       setBusy(null);
@@ -55,7 +71,7 @@ export function Merchant() {
   }
   async function pollGemini() {
     setBusy("tick");
-    const r = await fetch("/api/admin/resolve", { method: "POST", headers: { "content-type": "application/json", "x-admin-token": ADMIN }, body: JSON.stringify({ action: "tick" }) });
+    const r = await fetch("/api/admin/resolve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "tick" }) });
     const j = (await r.json()) as { settled?: number; error?: string };
     setMsg(j.error ?? (j.settled ? `Gemini settled ${j.settled}.` : "Checked Gemini: nothing has resolved yet."));
     setBusy(null);
@@ -134,7 +150,10 @@ export function Merchant() {
                     <tr key={o.id}>
                       <td>
                         <div className="font-bold uppercase">{o.product}</div>
-                        <div className="text-[11px] text-mute">{o.buyer}</div>
+                        <div className="text-[11px] text-mute">
+                          {o.buyer}
+                          {o.seller ? ` · sold by ${o.seller}` : ""}
+                        </div>
                       </td>
                       <td className="max-w-[200px] text-[12px]">
                         {o.event_ticker ? (
@@ -184,13 +203,29 @@ export function Merchant() {
 
           <div className="flex items-center justify-between border-y border-fg">
             <span className="tag px-4 py-2">Resolution desk</span>
-            <button onClick={pollGemini} disabled={busy !== null} className="inv border-l border-fg px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em] disabled:opacity-50">
+            <button onClick={pollGemini} disabled={busy !== null || !admin} className="inv border-l border-fg px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em] disabled:opacity-50">
               {busy === "tick" ? "Checking" : "Check Gemini now"}
             </button>
           </div>
           <p className="border-b border-fg px-4 py-3 text-[12px] leading-relaxed text-mute">
             Gemini resolves each market when the game ends; the poller picks it up within 30 seconds. For a demo the result can be called here. Escrow, rebate and hedge accounting run exactly as for real, with the source recorded as demo.
           </p>
+          {admin === false && (
+            <form onSubmit={unlock} className="grid-lines grid-cols-[1fr_auto] border-b border-fg">
+              <input value={token} onChange={(e) => setToken(e.target.value)} type="password" placeholder="Admin token to unlock the desk" className="field cell" />
+              <button className="cell btn w-[140px]">
+                <span>Unlock</span>
+              </button>
+            </form>
+          )}
+          {admin && (
+            <div className="flex items-center justify-between border-b border-fg px-4 py-2">
+              <span className="tag">Desk unlocked</span>
+              <button onClick={lock} className="tag hover:text-fg">
+                Lock
+              </button>
+            </div>
+          )}
           {openEvents.length === 0 && <div className="tag px-4 py-4">No open clauses</div>}
           {openEvents.map((o) => (
             <div key={o.event_ticker} className="grid-lines grid-cols-1 border-b border-fg sm:grid-cols-[1fr_auto_auto]">
@@ -200,10 +235,10 @@ export function Merchant() {
                   {open.filter((x) => x.event_ticker === o.event_ticker).length} open · resolves {o.expiry_at ? new Date(o.expiry_at).toLocaleString() : "after the game"}
                 </div>
               </div>
-              <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "yes")} disabled={busy !== null} className="cell btn btn-ghost sm:w-[160px]">
+              <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "yes")} disabled={busy !== null || !admin} className="cell btn btn-ghost sm:w-[160px]">
                 <span>{o.contract_label} win</span>
               </button>
-              <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "no")} disabled={busy !== null} className="cell btn sm:w-[160px]">
+              <button onClick={() => settle(o.event_ticker!, o.contract_symbol!, "no")} disabled={busy !== null || !admin} className="cell btn sm:w-[160px]">
                 <span>{o.contract_label} lose</span>
               </button>
             </div>

@@ -145,7 +145,7 @@ export function Receipt({ id }: { id: string }) {
         </div>
         <div className="grid-lines grid-cols-[120px_1fr] border-t border-fg">
           <div className="cell relative bg-faint">
-            <Image src={product.image} alt="" fill sizes="120px" className="object-cover" />
+            <Image src={product.image} alt="" fill unoptimized={!product.image.startsWith("/products/")} sizes="120px" className="object-cover" />
           </div>
           <div className="cell px-4 py-4">
             <div className="text-[16px] font-extrabold uppercase leading-none">{product.name}</div>
