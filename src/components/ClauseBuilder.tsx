@@ -134,14 +134,14 @@ export function ClauseBuilder({ product, events }: Props) {
             <div className="tag px-4 pt-3">01 · {crypto ? "The market" : "The game"}</div>
             <select value={event.ticker} onChange={(e) => setEventTicker(e.target.value)} className="seg !pb-4 !pt-2 text-[15px]" aria-label="Game">
               {events.filter((e) => !isCryptoTicker(e.ticker)).map((e) => (
-                <option key={e.ticker} value={e.ticker}>
+                <option key={e.ticker} value={e.ticker} suppressHydrationWarning>
                   {e.title} · {shortWhen(kickoff(e))}
                 </option>
               ))}
               {events.some((e) => isCryptoTicker(e.ticker)) && (
                 <optgroup label="Crypto · live on Gemini sandbox">
                   {events.filter((e) => isCryptoTicker(e.ticker)).map((e) => (
-                    <option key={e.ticker} value={e.ticker}>
+                    <option key={e.ticker} value={e.ticker} suppressHydrationWarning>
                       {e.title} · closes {kickoff(e)?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                     </option>
                   ))}
