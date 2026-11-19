@@ -44,3 +44,6 @@ next-env.d.ts
 .keys/
 data/
 .env.local
+
+# demo video is deployed by rsync, not git
+public/video/*.mp4
