@@ -6,6 +6,7 @@ import { useState } from "react";
 import { BuyerProvider, useBuyer } from "./buyer";
 import { SignInInline } from "./SignInInline";
 import { cents } from "@/lib/pricing";
+import { Mark } from "./Mark";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +36,8 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-fg bg-bg">
       <div className="grid-lines grid-cols-[auto_1fr_auto] md:grid-cols-[180px_1fr_auto]">
-        <Link href="/" className="cell inv flex items-center px-4 py-3 text-[18px] font-extrabold uppercase tracking-[-0.04em] md:text-[22px]">
+        <Link href="/" className="cell inv flex items-center gap-3 px-4 py-3 text-[18px] font-extrabold uppercase tracking-[-0.04em] md:text-[22px]">
+          <Mark size={22} />
           Clause
         </Link>
         <nav className="cell flex overflow-x-auto">
