@@ -6,7 +6,7 @@ export default function DemoVideo() {
   return (
     <div>
       <div className="flex items-center justify-between border-b border-fg">
-        <span className="tag px-4 py-2">Demo · 1:54 · UBC 2026</span>
+        <span className="tag px-4 py-2">Demo · 1:34 · UBC 2026</span>
         <Link href="/" className="inv px-4 py-2 text-[11px] font-bold uppercase tracking-[0.1em]">
           Open the store →
         </Link>
